@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/handshake"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
@@ -167,7 +168,11 @@ func (u *packetUnpacker) unpackShortHeader(hd headerDecryptor, data []byte) (int
 	// NO_CRYPTO_TAG
 	// here the offset for checking if a packet is too small
 	// is different since no crypto overhead is in the data
-	if len(data) < hdrLen+4 { //+16 {
+	offset := 0
+	if !crypto_turnoff.CRYPTO_TURNED_OFF {
+		offset = 16
+	}
+	if len(data) < hdrLen+4+offset {
 		return 0, 0, 0, 0, fmt.Errorf("packet too small, expected at least 20 bytes after the header, got %d", len(data)-hdrLen)
 	}
 
@@ -176,7 +181,7 @@ func (u *packetUnpacker) unpackShortHeader(hd headerDecryptor, data []byte) (int
 	// 2. decrypt the header, assuming a 4 byte packet number
 	hd.DecryptHeader(
 		// here the (in case of no crypto) wrong offsed does not matter since DecryptHeader will not have an effect
-		data[hdrLen+4:hdrLen+4+16],
+		data[hdrLen+4:hdrLen+4+offset],
 		&data[0],
 		data[hdrLen:hdrLen+4],
 	)
