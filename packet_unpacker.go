@@ -209,8 +209,16 @@ func (u *packetUnpacker) unpackLongHeader(hd headerDecryptor, hdr *wire.Header, 
 func unpackLongHeader(hd headerDecryptor, hdr *wire.Header, data []byte, v protocol.Version) (*wire.ExtendedHeader, error) {
 	r := bytes.NewReader(data)
 
+	// NO_CRYPTO_TAG
+	// here the offset for checking if a packet is too small
+	// is different since no crypto overhead is in the data
+	offset := 0
+	if !crypto_turnoff.CRYPTO_TURNED_OFF {
+		offset = 16
+	}
+
 	hdrLen := hdr.ParsedLen()
-	if protocol.ByteCount(len(data)) < hdrLen+4+16 {
+	if protocol.ByteCount(len(data)) < hdrLen+4+protocol.ByteCount(offset) {
 		//nolint:stylecheck
 		return nil, fmt.Errorf("Packet too small. Expected at least 20 bytes after the header, got %d", protocol.ByteCount(len(data))-hdrLen)
 	}
@@ -220,7 +228,7 @@ func unpackLongHeader(hd headerDecryptor, hdr *wire.Header, data []byte, v proto
 	copy(origPNBytes, data[hdrLen:hdrLen+4])
 	// 2. decrypt the header, assuming a 4 byte packet number
 	hd.DecryptHeader(
-		data[hdrLen+4:hdrLen+4+16],
+		data[hdrLen+4:hdrLen+4+protocol.ByteCount(offset)],
 		&data[0],
 		data[hdrLen:hdrLen+4],
 	)
