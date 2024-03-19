@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
@@ -154,6 +155,17 @@ func ParsePacket(data []byte) (*Header, []byte, []byte, error) {
 		}
 		return nil, nil, nil, err
 	}
+
+	// NO_CRYPTO_TAG
+	if crypto_turnoff.CRYPTO_TURNED_OFF {
+		// omit cryptographic operations for prove of concept
+		// adapting the header length since no crypto overhead
+		// is present
+		// see: sealer.Overhead() in packet_packer.go (function starting at line 900)
+		// TODO is this always 16?
+		hdr.Length -= 16
+	}
+
 	if protocol.ByteCount(len(data)) < hdr.ParsedLen()+hdr.Length {
 		return nil, nil, nil, fmt.Errorf("packet length (%d bytes) is smaller than the expected length (%d bytes)", len(data)-int(hdr.ParsedLen()), hdr.Length)
 	}
