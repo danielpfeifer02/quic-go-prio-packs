@@ -35,6 +35,9 @@ type SentPacketHandler interface {
 
 	GetLossDetectionTimeout() time.Time
 	OnLossDetectionTimeout() error
+
+	// PACKET_NUMBER_TAG
+	SetPacketNumber(protocol.PacketNumber)
 }
 
 type sentPacketTracker interface {

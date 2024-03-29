@@ -2493,3 +2493,13 @@ func (s *connection) NextConnection() Connection {
 func (s *connection) GetStreamPriority(sid StreamID) StreamPriority {
 	return s.streamsMap.GetStreamPriority(sid)
 }
+
+// PACKET_NUMBER_TAG
+func (s *connection) SetPacketNumber(pn protocol.PacketNumber) {
+	if !ackhandler.ALLOW_SETTING_PN {
+		fmt.Println("Trying to set packet number when not allowed (connection.go)")
+		return
+	}
+	sph := s.sentPacketHandler
+	sph.SetPacketNumber(pn)
+}

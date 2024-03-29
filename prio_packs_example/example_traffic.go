@@ -19,6 +19,8 @@ import (
 	"os"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs"
+	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 )
 
 const addr = "localhost:4242"
@@ -38,6 +40,9 @@ func main() {
 
 // Start a server that echos all data on the first stream opened by the client
 func echoServer() error {
+
+	crypto_turnoff.CRYPTO_TURNED_OFF = true
+
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
 		return err
@@ -49,6 +54,8 @@ func echoServer() error {
 	if err != nil {
 		return err
 	}
+
+	conn.SetPacketNumber(protocol.PacketNumber(0x42)) // ! TODO not yet working?
 
 	// // Accept the first stream opened by the client
 	// stream, err := conn.AcceptStream(context.Background())

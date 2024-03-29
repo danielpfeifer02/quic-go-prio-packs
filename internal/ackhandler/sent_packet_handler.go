@@ -40,7 +40,12 @@ type packetNumberSpace struct {
 
 func newPacketNumberSpace(initialPN protocol.PacketNumber, skipPNs bool) *packetNumberSpace {
 	var pns packetNumberGenerator
-	if skipPNs {
+
+	// PACKET_NUMBER_TAG
+	// also check skipPNs since that one indicates application data packet number space
+	if skipPNs && ALLOW_SETTING_PN {
+		pns = newSequentialPacketNumberGenerator(initialPN)
+	} else if skipPNs {
 		pns = newSkippingPacketNumberGenerator(initialPN, protocol.SkipPacketInitialPeriod, protocol.SkipPacketMaxPeriod)
 	} else {
 		pns = newSequentialPacketNumberGenerator(initialPN)
@@ -925,4 +930,14 @@ func (h *sentPacketHandler) SetHandshakeConfirmed() {
 	// We don't send PTOs for application data packets before the handshake completes.
 	// Make sure the timer is armed now, if necessary.
 	h.setLossDetectionTimer()
+}
+
+// PACKET_NUMBER_TAG
+func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
+	if !ALLOW_SETTING_PN {
+		fmt.Println("Trying to set packet number when not allowed (sent_packet_handler.go)")
+		return
+	}
+	gen := h.appDataPackets.pns.(*settablePacketNumberGenerator)
+	gen.SetPacketNumber(pn)
 }

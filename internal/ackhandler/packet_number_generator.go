@@ -5,6 +5,9 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 )
 
+// PACKET_NUMBER_TAG
+var ALLOW_SETTING_PN = false
+
 type packetNumberGenerator interface {
 	Peek() protocol.PacketNumber
 	// Pop pops the packet number.
@@ -81,4 +84,34 @@ func (p *skippingPacketNumberGenerator) generateNewSkip() {
 	// make sure that there are never two consecutive packet numbers that are skipped
 	p.nextToSkip = p.next + 3 + protocol.PacketNumber(p.rng.Int31n(int32(2*p.period)))
 	p.period = min(2*p.period, p.maxPeriod)
+}
+
+// PACKET_NUMBER_TAG
+type settablePacketNumberGenerator struct {
+	next    protocol.PacketNumber
+	changed bool
+}
+
+var _ packetNumberGenerator = &settablePacketNumberGenerator{}
+
+func newsettablePacketNumberGenerator(initial protocol.PacketNumber) packetNumberGenerator {
+	return &settablePacketNumberGenerator{next: initial, changed: false}
+}
+
+func (p *settablePacketNumberGenerator) Peek() protocol.PacketNumber {
+	return p.next
+}
+
+func (p *settablePacketNumberGenerator) Pop() (bool, protocol.PacketNumber) {
+	next := p.next
+	p.next++
+	oldChanged := p.changed
+	p.changed = false
+	return oldChanged, next // TODO: what does oldChanged == true cause?
+}
+
+func (p *settablePacketNumberGenerator) SetPacketNumber(next protocol.PacketNumber) {
+	// TODO check that new pn is bigger than current pn
+	p.next = next
+	p.changed = true
 }
