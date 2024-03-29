@@ -94,7 +94,7 @@ type settablePacketNumberGenerator struct {
 
 var _ packetNumberGenerator = &settablePacketNumberGenerator{}
 
-func newsettablePacketNumberGenerator(initial protocol.PacketNumber) packetNumberGenerator {
+func newSettablePacketNumberGenerator(initial protocol.PacketNumber) packetNumberGenerator {
 	return &settablePacketNumberGenerator{next: initial, changed: false}
 }
 

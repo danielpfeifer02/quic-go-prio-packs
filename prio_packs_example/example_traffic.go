@@ -20,6 +20,7 @@ import (
 
 	"github.com/danielpfeifer02/quic-go-prio-packs"
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/ackhandler"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 )
 
@@ -42,6 +43,7 @@ func main() {
 func echoServer() error {
 
 	crypto_turnoff.CRYPTO_TURNED_OFF = true
+	ackhandler.ALLOW_SETTING_PN = true
 
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
