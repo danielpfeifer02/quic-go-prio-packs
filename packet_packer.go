@@ -179,6 +179,12 @@ func newPacketPacker(
 
 // PackConnectionClose packs a packet that closes the connection with a transport error.
 func (p *packetPacker) PackConnectionClose(e *qerr.TransportError, maxPacketSize protocol.ByteCount, v protocol.Version) (*coalescedPacket, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	// TODO: verify that Unlock() is called AFTER p.packConnectionClose(...) is called
+	defer p.connection.Unlock()
+
 	var reason string
 	// don't send details of crypto errors
 	if !e.ErrorCode.IsCryptoError() {
@@ -189,6 +195,12 @@ func (p *packetPacker) PackConnectionClose(e *qerr.TransportError, maxPacketSize
 
 // PackApplicationClose packs a packet that closes the connection with an application error.
 func (p *packetPacker) PackApplicationClose(e *qerr.ApplicationError, maxPacketSize protocol.ByteCount, v protocol.Version) (*coalescedPacket, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	// TODO: verify that Unlock() is called AFTER p.packConnectionClose(...) is called
+	defer p.connection.Unlock()
+
 	return p.packConnectionClose(true, uint64(e.ErrorCode), 0, e.ErrorMessage, maxPacketSize, v)
 }
 
@@ -341,6 +353,11 @@ func (p *packetPacker) initialPaddingLen(frames []ackhandler.Frame, currentSize,
 // It packs an Initial / Handshake if there is data to send in these packet number spaces.
 // It should only be called before the handshake is confirmed.
 func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.ByteCount, v protocol.Version) (*coalescedPacket, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	defer p.connection.Unlock()
+
 	var (
 		initialHdr, handshakeHdr, zeroRTTHdr                            *wire.ExtendedHeader
 		initialPayload, handshakePayload, zeroRTTPayload, oneRTTPayload payload
@@ -476,6 +493,11 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 // PackAckOnlyPacket packs a packet containing only an ACK in the application data packet number space.
 // It should be called after the handshake is confirmed.
 func (p *packetPacker) PackAckOnlyPacket(maxPacketSize protocol.ByteCount, v protocol.Version) (shortHeaderPacket, *packetBuffer, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	defer p.connection.Unlock()
+
 	buf := getPacketBuffer()
 	packet, err := p.appendPacket(buf, true, maxPacketSize, v)
 	return packet, buf, err
@@ -484,6 +506,11 @@ func (p *packetPacker) PackAckOnlyPacket(maxPacketSize protocol.ByteCount, v pro
 // AppendPacket packs a packet in the application data packet number space.
 // It should be called after the handshake is confirmed.
 func (p *packetPacker) AppendPacket(buf *packetBuffer, maxPacketSize protocol.ByteCount, v protocol.Version) (shortHeaderPacket, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	defer p.connection.Unlock()
+
 	return p.appendPacket(buf, false, maxPacketSize, v)
 }
 
@@ -713,6 +740,11 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 }
 
 func (p *packetPacker) MaybePackProbePacket(encLevel protocol.EncryptionLevel, maxPacketSize protocol.ByteCount, v protocol.Version) (*coalescedPacket, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	defer p.connection.Unlock()
+
 	if encLevel == protocol.Encryption1RTT {
 		s, err := p.cryptoSetup.Get1RTTSealer()
 		if err != nil {
@@ -782,6 +814,11 @@ func (p *packetPacker) MaybePackProbePacket(encLevel protocol.EncryptionLevel, m
 }
 
 func (p *packetPacker) PackMTUProbePacket(ping ackhandler.Frame, size protocol.ByteCount, v protocol.Version) (shortHeaderPacket, *packetBuffer, error) {
+
+	// PACKET_NUMBER_TAG
+	p.connection.Lock()
+	defer p.connection.Unlock()
+
 	pl := payload{
 		frames: []ackhandler.Frame{ping},
 		length: ping.Frame.Length(v),

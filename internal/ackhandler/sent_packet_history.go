@@ -22,6 +22,12 @@ func newSentPacketHistory() *sentPacketHistory {
 }
 
 func (h *sentPacketHistory) checkSequentialPacketNumberUse(pn protocol.PacketNumber) {
+
+	// PACKET_NUMBER_TAG
+	if ALLOW_SETTING_PN {
+		return
+	}
+
 	if h.highestPacketNumber != protocol.InvalidPacketNumber {
 		if pn != h.highestPacketNumber+1 {
 			panic("non-sequential packet number use")
