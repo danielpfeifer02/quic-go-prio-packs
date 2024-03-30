@@ -3,6 +3,7 @@ package ackhandler
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/congestion"
@@ -942,12 +943,11 @@ func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
 
 	gen := h.appDataPackets.pns
 
-	// TODO: add again
 	// Check type of generator
-	// settableType := &settablePacketNumberGenerator{}
-	// if reflect.TypeOf(gen) != reflect.TypeOf(settableType) {
-	// 	fmt.Println("Trying to set packet number for generator of wrong type (sent_packet_handler.go)")
-	// 	return
-	// }
+	settableType := &settablePacketNumberGenerator{}
+	if reflect.TypeOf(gen) != reflect.TypeOf(settableType) {
+		fmt.Println("Trying to set packet number for generator of wrong type (sent_packet_handler.go)")
+		return
+	}
 	gen.(*settablePacketNumberGenerator).SetPacketNumber(pn)
 }
