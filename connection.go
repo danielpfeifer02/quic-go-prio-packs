@@ -22,6 +22,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 type unpacker interface {
@@ -2501,17 +2502,19 @@ func (s *connection) GetStreamPriority(sid StreamID) StreamPriority {
 }
 
 // PACKET_NUMBER_TAG
-func (s *connection) SetPacketNumber(pn protocol.PacketNumber) {
+func (s *connection) SetPacketNumber(pn int64) {
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	if !ackhandler.ALLOW_SETTING_PN {
+	pn_typed := protocol.PacketNumber(pn)
+
+	if !packet_setting.ALLOW_SETTING_PN {
 		fmt.Println("Trying to set packet number when not allowed (connection.go)")
 		return
 	}
 	sph := s.sentPacketHandler
-	sph.SetPacketNumber(pn)
+	sph.SetPacketNumber(pn_typed)
 }
 
 func (s *connection) Lock() {

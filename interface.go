@@ -249,7 +249,7 @@ type Connection interface {
 	// PACKET_NUMBER_TAG
 	// SetPacketNumber sets the packet number for the next packet sent on the connection.
 	// This is needed if bpf porgrams are sending packets.
-	SetPacketNumber(protocol.PacketNumber)
+	SetPacketNumber(int64)
 	Lock()
 	Unlock()
 }

@@ -5,9 +5,6 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 )
 
-// PACKET_NUMBER_TAG
-var ALLOW_SETTING_PN = false
-
 type packetNumberGenerator interface {
 	Peek() protocol.PacketNumber
 	// Pop pops the packet number.

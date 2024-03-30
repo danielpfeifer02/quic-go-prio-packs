@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 type sentPacketHistory struct {
@@ -24,7 +25,7 @@ func newSentPacketHistory() *sentPacketHistory {
 func (h *sentPacketHistory) checkSequentialPacketNumberUse(pn protocol.PacketNumber) {
 
 	// PACKET_NUMBER_TAG
-	if ALLOW_SETTING_PN {
+	if packet_setting.ALLOW_SETTING_PN {
 		return
 	}
 

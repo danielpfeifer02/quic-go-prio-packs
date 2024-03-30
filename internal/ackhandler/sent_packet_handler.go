@@ -12,6 +12,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 const (
@@ -44,7 +45,7 @@ func newPacketNumberSpace(initialPN protocol.PacketNumber, skipPNs bool) *packet
 
 	// PACKET_NUMBER_TAG
 	// also check skipPNs since that one indicates application data packet number space
-	if skipPNs && ALLOW_SETTING_PN {
+	if skipPNs && packet_setting.ALLOW_SETTING_PN {
 		pns = newSettablePacketNumberGenerator(initialPN)
 	} else if skipPNs {
 		pns = newSkippingPacketNumberGenerator(initialPN, protocol.SkipPacketInitialPeriod, protocol.SkipPacketMaxPeriod)
@@ -935,7 +936,7 @@ func (h *sentPacketHandler) SetHandshakeConfirmed() {
 
 // PACKET_NUMBER_TAG
 func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
-	if !ALLOW_SETTING_PN {
+	if !packet_setting.ALLOW_SETTING_PN {
 		fmt.Println("Trying to set packet number when not allowed (sent_packet_handler.go)")
 		return
 	}
