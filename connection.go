@@ -222,6 +222,9 @@ type connection struct {
 	logID  string
 	tracer *logging.ConnectionTracer
 	logger utils.Logger
+
+	// PACKET_NUMBER_TAG
+	mutex sync.Mutex
 }
 
 var (
@@ -260,6 +263,9 @@ var newConnection = func(
 		tracer:              tracer,
 		logger:              logger,
 		version:             v,
+
+		// PACKET_NUMBER_TAG
+		mutex: sync.Mutex{},
 	}
 	if origDestConnID.Len() > 0 {
 		s.logID = origDestConnID.String()
@@ -1837,7 +1843,7 @@ func (s *connection) triggerSending(now time.Time) error {
 		}
 		return s.triggerSending(now)
 	default:
-		return fmt.Errorf("BUG: invalid send mode %d", sendMode)
+		return fmt.Errorf(" invalid send mode %d", sendMode)
 	}
 }
 
@@ -2496,10 +2502,22 @@ func (s *connection) GetStreamPriority(sid StreamID) StreamPriority {
 
 // PACKET_NUMBER_TAG
 func (s *connection) SetPacketNumber(pn protocol.PacketNumber) {
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	if !ackhandler.ALLOW_SETTING_PN {
 		fmt.Println("Trying to set packet number when not allowed (connection.go)")
 		return
 	}
 	sph := s.sentPacketHandler
 	sph.SetPacketNumber(pn)
+}
+
+func (s *connection) Lock() {
+	s.mutex.Lock()
+}
+
+func (s *connection) Unlock() {
+	s.mutex.Unlock()
 }

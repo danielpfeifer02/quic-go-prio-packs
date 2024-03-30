@@ -19,15 +19,23 @@ import (
 	"os"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs"
+	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/ackhandler"
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 )
 
 const addr = "localhost:4242"
 
 const message = "foobar"
 
+const NUM_MESSAGES = 3
+
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
 func main() {
+
+	os.Remove("tls.keylog")
+
 	go func() { log.Fatal(echoServer()) }()
 
 	err := clientMain()
@@ -39,53 +47,46 @@ func main() {
 // Start a server that echos all data on the first stream opened by the client
 func echoServer() error {
 
+	crypto_turnoff.CRYPTO_TURNED_OFF = false
+	ackhandler.ALLOW_SETTING_PN = true
+
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer listener.Close()
 
 	// Accept the incoming connection from the client
 	conn, err := listener.Accept(context.Background())
 	if err != nil {
-		return err
+		panic(err)
 	}
 
-	// // Accept the first stream opened by the client
-	// stream, err := conn.AcceptStream(context.Background())
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer stream.Close()
-
-	// // TODO: AcceptStream seems to not return the stream with the same priority?
-	// // fmt.Printf("Prio stream one (serverside): %d\n", stream.Priority())
-
-	// // Handle the first stream opened by the client
-	// // in a separate goroutine
-	// go func(stream quic.Stream) {
-	// 	// Echo through the loggingWriter
-	// 	_, err = io.Copy(loggingWriter{stream}, stream)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }(stream)
-
-	// Accept the second stream opened by the client
-	stream2, err2 := conn.AcceptStream(context.Background())
-	if err2 != nil {
-		panic(err2)
-	}
-	defer stream2.Close()
-
-	// fmt.Printf("Prio stream two (serverside): %d\n", stream2.Priority())
-
-	// Handle the second stream opened by the client
-	// in the current goroutine
-	// Echo through the loggingWriter
-	_, err = io.Copy(loggingWriter{stream2}, stream2)
+	stream, err := conn.AcceptStream(context.Background())
 	if err != nil {
 		panic(err)
+	}
+	defer stream.Close()
+
+	pn_multiplier := 0x42
+
+	for i := 1; i <= NUM_MESSAGES; i++ {
+
+		buf := make([]byte, len(message)+1)
+
+		_, err = io.ReadFull(stream, buf)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(buf))
+		_, err = stream.Write(buf)
+		if err != nil {
+			panic(err)
+		}
+
+		conn.SetPacketNumber(protocol.PacketNumber(i * pn_multiplier))
+
 	}
 
 	return nil
@@ -102,57 +103,29 @@ func clientMain() error {
 	}
 	defer conn.CloseWithError(0, "")
 
-	// Open a new stream with high priority
-	stream_high_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), quic.HighPriority)
+	// Open a new stream
+	stream_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), quic.HighPriority)
 	if err != nil {
 		return err
 	}
-	defer stream_high_prio.Close()
-	// fmt.Printf("Prio of stream one (clientside): %d\n", stream_high_prio.Priority())
+	defer stream_prio.Close()
 
-	// Open a new stream with low priority
-	// stream_low_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), quic.LowPriority)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer stream_low_prio.Close()
-	// fmt.Printf("Prio of stream two (clientside): %d\n", stream_low_prio.Priority())
+	for i := 1; i <= NUM_MESSAGES; i++ {
 
-	// Send three messages with high priority
-	for i := 0; i < 3; i++ {
-
-		fmt.Printf("	>>Client: Sending with high prio '%s%d'\n", message, i)
-		_, err = stream_high_prio.Write([]byte(message + fmt.Sprintf("%d", i)))
+		fmt.Printf("	>>Client: Sending '%s%d'\n", message, i)
+		_, err = stream_prio.Write([]byte(message + fmt.Sprintf("%d", i)))
 		if err != nil {
 			return err
 		}
 
-		buf_high := make([]byte, len(message)+1)
-		_, err = io.ReadFull(stream_high_prio, buf_high)
+		buf := make([]byte, len(message)+1)
+		_, err = io.ReadFull(stream_prio, buf)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("	>>Client: Got with high prio '%s'\n\n", buf_high)
+		fmt.Printf("	>>Client: Got '%s'\n\n", buf)
 
 	}
-
-	// // Send three messages with low priority
-	// for i := 0; i < 3; i++ {
-
-	// 	fmt.Printf("	>>Client: Sending with low prio '%s%d'\n", message, i+3)
-	// 	_, err = stream_low_prio.Write([]byte(message + fmt.Sprintf("%d", i+3)))
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	buf_low := make([]byte, len(message)+1)
-	// 	_, err = io.ReadFull(stream_low_prio, buf_low)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	fmt.Printf("	>>Client: Got with low prio '%s'\n\n", buf_low)
-
-	// }
 
 	return nil
 }

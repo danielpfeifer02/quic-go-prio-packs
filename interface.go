@@ -250,6 +250,8 @@ type Connection interface {
 	// SetPacketNumber sets the packet number for the next packet sent on the connection.
 	// This is needed if bpf porgrams are sending packets.
 	SetPacketNumber(protocol.PacketNumber)
+	Lock()
+	Unlock()
 }
 
 // An EarlyConnection is a connection that is handshaking.
