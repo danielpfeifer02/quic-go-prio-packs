@@ -85,6 +85,7 @@ func echoServer() error {
 		}
 
 		conn.SetPacketNumber(int64(i * pn_multiplier))
+		conn.SetHighestSent(int64(i * pn_multiplier))
 
 	}
 
