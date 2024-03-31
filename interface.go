@@ -250,6 +250,11 @@ type Connection interface {
 	// SetPacketNumber sets the packet number for the next packet sent on the connection.
 	// This is needed if bpf porgrams are sending packets.
 	SetPacketNumber(int64)
+	// SetHighestSent sets the highest packet number sent on the connection.
+	// This is needed if bpf porgrams are sending packets.
+	SetHighestSent(int64)
+	// (Un-)Locking the packet number setting so that it is not changed during actively checking
+	// a packet number of a packet.
 	Lock()
 	Unlock()
 }

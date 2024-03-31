@@ -318,7 +318,11 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 	largestAcked := ack.LargestAcked()
 	if largestAcked > pnSpace.largestSent {
 		return false, &qerr.TransportError{
-			ErrorCode:    qerr.ProtocolViolation,
+			ErrorCode: qerr.ProtocolViolation,
+			// PACKET_NUMBER_TAG
+			// Given that the user-space program correctly sets the
+			// largest setn packet number given by the bpf program
+			// this should not occur.
 			ErrorMessage: "received ACK for an unsent packet",
 		}
 	}
@@ -436,7 +440,9 @@ func (h *sentPacketHandler) detectAndRemoveAckedPackets(ack *wire.AckFrame, encL
 		}
 		if p.skippedPacket {
 			return false, &qerr.TransportError{
-				ErrorCode:    qerr.ProtocolViolation,
+				ErrorCode: qerr.ProtocolViolation,
+				// PACKET_NUMBER_TAG
+				// TODO: how to avoid running into this?
 				ErrorMessage: fmt.Sprintf("received an ACK for skipped packet number: %d (%s)", p.PacketNumber, encLevel),
 			}
 		}
@@ -950,4 +956,13 @@ func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
 		return
 	}
 	gen.(*settablePacketNumberGenerator).SetPacketNumber(pn)
+}
+
+func (h *sentPacketHandler) SetHighestSentPacketNumber(pn protocol.PacketNumber) {
+	if !packet_setting.ALLOW_SETTING_PN {
+		fmt.Println("Trying to set highest setn packet number when not allowed (sent_packet_handler.go)")
+		return
+	}
+
+	h.appDataPackets.largestSent = pn
 }

@@ -2517,6 +2517,15 @@ func (s *connection) SetPacketNumber(pn int64) {
 	sph.SetPacketNumber(pn_typed)
 }
 
+func (s *connection) SetHighestSent(pn int64) {
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	pn_typed := protocol.PacketNumber(pn)
+	s.sentPacketHandler.SetHighestSentPacketNumber(pn_typed)
+}
+
 func (s *connection) Lock() {
 	s.mutex.Lock()
 }

@@ -38,6 +38,7 @@ type SentPacketHandler interface {
 
 	// PACKET_NUMBER_TAG
 	SetPacketNumber(protocol.PacketNumber)
+	SetHighestSentPacketNumber(protocol.PacketNumber)
 }
 
 type sentPacketTracker interface {
