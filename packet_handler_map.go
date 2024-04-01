@@ -12,6 +12,7 @@ import (
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 type connCapabilities struct {
@@ -151,6 +152,13 @@ func (h *packetHandlerMap) Remove(id protocol.ConnectionID) {
 }
 
 func (h *packetHandlerMap) Retire(id protocol.ConnectionID) {
+	// PACKET_NUMBER_TAG
+	// TODO: possibility of ommiting retirement of connection ID (just for now)
+	// TODO: fix issue when id is retiring in bpf / go code instead of here
+	if packet_setting.OMIT_CONN_ID_RETIREMENT {
+		return
+	}
+
 	h.logger.Debugf("Retiring connection ID %s in %s.", id, h.deleteRetiredConnsAfter)
 	time.AfterFunc(h.deleteRetiredConnsAfter, func() {
 		h.mutex.Lock()
