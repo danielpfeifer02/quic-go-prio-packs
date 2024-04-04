@@ -130,7 +130,7 @@ func (h *packetHandlerMap) Add(id protocol.ConnectionID, handler packetHandler) 
 	if packet_setting.ConnectionInitiationBPFHandler != nil {
 		// Call the handler that makes sure that the initiation of the connection
 		// is handled correctly with all the bpf maps
-		packet_setting.ConnectionInitiationBPFHandler()
+		packet_setting.ConnectionInitiationBPFHandler(id.Bytes(), uint8(id.Len()))
 	}
 
 	h.handlers[id] = handler
@@ -164,7 +164,7 @@ func (h *packetHandlerMap) Retire(id protocol.ConnectionID) {
 	if packet_setting.ConnectionRetirementBPFHandler != nil {
 		// Call the handler that makes sure that the retirement of the connection
 		// is handled correctly with all the bpf maps
-		packet_setting.ConnectionRetirementBPFHandler()
+		packet_setting.ConnectionRetirementBPFHandler(id.Bytes(), uint8(id.Len()))
 	}
 
 	h.logger.Debugf("Retiring connection ID %s in %s.", id, h.deleteRetiredConnsAfter)

@@ -98,17 +98,19 @@ func echoServer() error {
 	return nil
 }
 
-func initiationBPFHandler() {
-	fmt.Println("Initiation BPF Handler called")
-	liste = append(liste, counter)
-	fmt.Printf("Adding %d to the list\n", counter)
-	counter++
+func initiationBPFHandler(id []byte, l uint8) {
+	fmt.Println("new", len(id))
+	// fmt.Println("Initiation BPF Handler called")
+	// liste = append(liste, counter)
+	// fmt.Printf("Adding %d to the list\n", counter)
+	// counter++
 }
 
-func retirementBPFHandler() {
-	fmt.Println("Retirement BPF Handler called")
-	fmt.Printf("Removing %d from the list\n", liste[0])
-	liste = liste[1:]
+func retirementBPFHandler(id []byte, l uint8) {
+	fmt.Println("old", len(id))
+	// fmt.Println("Retirement BPF Handler called")
+	// fmt.Printf("Removing %d from the list\n", liste[0])
+	// liste = liste[1:]
 }
 
 func clientMain() error {
