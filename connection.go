@@ -23,6 +23,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 type unpacker interface {
@@ -1058,7 +1059,7 @@ func (s *connection) handleRetryPacket(hdr *wire.Header, data []byte, rcvTime ti
 		return false
 	}
 	// PRIO_PACKS_TAG
-	destConnID := s.connIDManager.Get(PrioRetryPacket)
+	destConnID := s.connIDManager.Get(priority_setting.PrioRetryPacket)
 	if hdr.SrcConnectionID == destConnID {
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
 			s.tracer.DroppedPacket(logging.PacketTypeRetry, protocol.InvalidPacketNumber, protocol.ByteCount(len(data)), logging.PacketDropUnexpectedPacket)
@@ -2332,7 +2333,7 @@ func (s *connection) OpenStreamWithPriority(priority protocol.StreamPriority) (S
 
 // OpenStream opens a stream
 func (s *connection) OpenStream() (Stream, error) {
-	return s.streamsMap.OpenStreamWithPriority(NoPriority)
+	return s.streamsMap.OpenStreamWithPriority(priority_setting.NoPriority)
 }
 
 // PRIO_PACKS_TAG
@@ -2347,7 +2348,7 @@ func (s *connection) OpenStreamSyncWithPriority(ctx context.Context, priority pr
 }
 
 func (s *connection) OpenStreamSync(ctx context.Context) (Stream, error) {
-	return s.streamsMap.OpenStreamSyncWithPriority(ctx, NoPriority)
+	return s.streamsMap.OpenStreamSyncWithPriority(ctx, priority_setting.NoPriority)
 }
 
 // PRIO_PACKS_TAG
@@ -2362,7 +2363,7 @@ func (s *connection) OpenUniStreamWithPriority(priority protocol.StreamPriority)
 }
 
 func (s *connection) OpenUniStream() (SendStream, error) {
-	return s.streamsMap.OpenUniStreamWithPriority(NoPriority)
+	return s.streamsMap.OpenUniStreamWithPriority(priority_setting.NoPriority)
 }
 
 // PRIO_PACKS_TAG
@@ -2377,7 +2378,7 @@ func (s *connection) OpenUniStreamSyncWithPriority(ctx context.Context, priority
 }
 
 func (s *connection) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
-	return s.streamsMap.OpenUniStreamSyncWithPriority(ctx, NoPriority)
+	return s.streamsMap.OpenUniStreamSyncWithPriority(ctx, priority_setting.NoPriority)
 }
 
 func (s *connection) newFlowController(id protocol.StreamID) flowcontrol.StreamFlowController {

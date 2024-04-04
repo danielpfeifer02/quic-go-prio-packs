@@ -125,6 +125,14 @@ func (h *packetHandlerMap) Add(id protocol.ConnectionID, handler packetHandler) 
 		h.logger.Debugf("Not adding connection ID %s, as it already exists.", id)
 		return false
 	}
+
+	// PACKET_NUMBER_TAG
+	if packet_setting.ConnectionInitiationBPFHandler != nil {
+		// Call the handler that makes sure that the initiation of the connection
+		// is handled correctly with all the bpf maps
+		packet_setting.ConnectionInitiationBPFHandler()
+	}
+
 	h.handlers[id] = handler
 	h.logger.Debugf("Adding connection ID %s.", id)
 	return true
@@ -153,10 +161,10 @@ func (h *packetHandlerMap) Remove(id protocol.ConnectionID) {
 
 func (h *packetHandlerMap) Retire(id protocol.ConnectionID) {
 	// PACKET_NUMBER_TAG
-	// TODO: possibility of ommiting retirement of connection ID (just for now)
-	// TODO: fix issue when id is retiring in bpf / go code instead of here
-	if packet_setting.OMIT_CONN_ID_RETIREMENT {
-		return
+	if packet_setting.ConnectionRetirementBPFHandler != nil {
+		// Call the handler that makes sure that the retirement of the connection
+		// is handled correctly with all the bpf maps
+		packet_setting.ConnectionRetirementBPFHandler()
 	}
 
 	h.logger.Debugf("Retiring connection ID %s in %s.", id, h.deleteRetiredConnsAfter)

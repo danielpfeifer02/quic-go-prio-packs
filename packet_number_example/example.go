@@ -21,6 +21,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs"
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 const addr = "localhost:4242"
@@ -28,6 +29,9 @@ const addr = "localhost:4242"
 const message = "foobar"
 
 const NUM_MESSAGES = 3
+
+var counter int = 0
+var liste = make([]int, 0)
 
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
@@ -48,6 +52,8 @@ func echoServer() error {
 
 	crypto_turnoff.CRYPTO_TURNED_OFF = false
 	packet_setting.ALLOW_SETTING_PN = true
+	packet_setting.ConnectionInitiationBPFHandler = initiationBPFHandler
+	packet_setting.ConnectionRetirementBPFHandler = retirementBPFHandler
 
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
@@ -92,6 +98,19 @@ func echoServer() error {
 	return nil
 }
 
+func initiationBPFHandler() {
+	fmt.Println("Initiation BPF Handler called")
+	liste = append(liste, counter)
+	fmt.Printf("Adding %d to the list\n", counter)
+	counter++
+}
+
+func retirementBPFHandler() {
+	fmt.Println("Retirement BPF Handler called")
+	fmt.Printf("Removing %d from the list\n", liste[0])
+	liste = liste[1:]
+}
+
 func clientMain() error {
 	tlsConf := &tls.Config{
 		InsecureSkipVerify: true,
@@ -104,7 +123,7 @@ func clientMain() error {
 	defer conn.CloseWithError(0, "")
 
 	// Open a new stream
-	stream_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), quic.HighPriority)
+	stream_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), priority_setting.HighPriority)
 	if err != nil {
 		return err
 	}

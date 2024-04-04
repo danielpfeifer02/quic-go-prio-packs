@@ -11,6 +11,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 type streamError struct {
@@ -365,7 +366,7 @@ func (m *streamsMap) UseResetMaps() {
 func (m *streamsMap) GetStreamPriority(id protocol.StreamID) protocol.StreamPriority {
 	str, err := m.getOrOpenSendStream(id)
 	if err != nil {
-		return NoPriority
+		return priority_setting.NoPriority
 	}
 	return str.Priority()
 }
