@@ -11,6 +11,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 type receiveStreamI interface {
@@ -71,7 +72,7 @@ func newReceiveStream(
 		readOnce:       make(chan struct{}, 1),
 		finalOffset:    protocol.MaxByteCount,
 		// PRIO_PACKS_TAG
-		priority: NoPriority,
+		priority: priority_setting.NoPriority,
 	}
 }
 

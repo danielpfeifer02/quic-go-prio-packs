@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 const addr = "localhost:4242"
@@ -103,7 +104,7 @@ func clientMain() error {
 	defer conn.CloseWithError(0, "")
 
 	// Open a new stream with high priority
-	stream_high_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), quic.HighPriority)
+	stream_high_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), priority_setting.HighPriority)
 	if err != nil {
 		return err
 	}
