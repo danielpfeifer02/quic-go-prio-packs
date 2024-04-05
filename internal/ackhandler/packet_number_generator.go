@@ -104,11 +104,13 @@ func (p *settablePacketNumberGenerator) Pop() (bool, protocol.PacketNumber) {
 	p.next++
 	oldChanged := p.changed
 	p.changed = false
-	return oldChanged, next // TODO: what does oldChanged == true cause?
+	return oldChanged, next // TODO: what does oldChanged == true cause? oldChanged is the value for skipped which might cause a protocol violation
 }
 
 func (p *settablePacketNumberGenerator) SetPacketNumber(next protocol.PacketNumber) {
-	// TODO check that new pn is bigger than current pn
+	if next <= p.next {
+		panic("cannot lower the packet number")
+	}
 	p.next = next
-	p.changed = true
+	// p.changed = true
 }
