@@ -743,6 +743,10 @@ func (h *sentPacketHandler) OnLossDetectionTimeout() error {
 	case protocol.Encryption1RTT:
 		// skip a packet number in order to elicit an immediate ACK
 		pn := h.PopPacketNumber(protocol.Encryption1RTT)
+
+		// PACKET_NUMBER_TAG
+		// TODO: do I need to add function to handle BPF pn update on skip?
+
 		h.getPacketNumberSpace(protocol.Encryption1RTT).history.SkippedPacket(pn)
 		h.ptoMode = SendPTOAppData
 	default:

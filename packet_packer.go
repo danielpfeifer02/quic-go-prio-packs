@@ -14,6 +14,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
@@ -894,6 +895,14 @@ func (p *packetPacker) appendLongHeaderPacket(buffer *packetBuffer, header *wire
 	if pn := p.pnManager.PopPacketNumber(encLevel); pn != header.PacketNumber {
 		return nil, fmt.Errorf("packetPacker BUG: Peeked and Popped packet numbers do not match: expected %d, got %d", pn, header.PacketNumber)
 	}
+
+	// PACKET_NUMBER_TAG
+	if packet_setting.PacketNumberIncrementBPFHandler != nil {
+		// Handle the change of packet number by calling the BPF handler function
+		// defined by the user who knows about the specific BPF setup
+		packet_setting.PacketNumberIncrementBPFHandler(int64(header.PacketNumber), p.connection)
+	}
+
 	return &longHeaderPacket{
 		header:       header,
 		ack:          pl.ack,
@@ -944,6 +953,14 @@ func (p *packetPacker) appendShortHeaderPacket(
 	if newPN := p.pnManager.PopPacketNumber(protocol.Encryption1RTT); newPN != pn {
 		return shortHeaderPacket{}, fmt.Errorf("packetPacker BUG: Peeked and Popped packet numbers do not match: expected %d, got %d", pn, newPN)
 	}
+
+	// PACKET_NUMBER_TAG
+	if packet_setting.PacketNumberIncrementBPFHandler != nil {
+		// Handle the change of packet number by calling the BPF handler function
+		// defined by the user who knows about the specific BPF setup
+		packet_setting.PacketNumberIncrementBPFHandler(int64(pn), p.connection)
+	}
+
 	return shortHeaderPacket{
 		PacketNumber:         pn,
 		PacketNumberLen:      pnLen,
