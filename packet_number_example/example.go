@@ -98,16 +98,19 @@ func echoServer() error {
 	return nil
 }
 
-func initiationBPFHandler(id []byte, l uint8) {
-	fmt.Println("new", len(id))
+func initiationBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
+	qconn := conn.(quic.Connection)
+	fmt.Println("create id with length: ", len(id), "from", qconn.RemoteAddr().String())
+
 	// fmt.Println("Initiation BPF Handler called")
 	// liste = append(liste, counter)
 	// fmt.Printf("Adding %d to the list\n", counter)
 	// counter++
 }
 
-func retirementBPFHandler(id []byte, l uint8) {
-	fmt.Println("old", len(id))
+func retirementBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
+	qconn := conn.(quic.Connection)
+	fmt.Println("retire id with length: ", len(id), "from", qconn.RemoteAddr().String())
 	// fmt.Println("Retirement BPF Handler called")
 	// fmt.Printf("Removing %d from the list\n", liste[0])
 	// liste = liste[1:]
