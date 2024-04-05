@@ -1508,10 +1508,26 @@ func (s *connection) handleNewTokenFrame(frame *wire.NewTokenFrame) error {
 }
 
 func (s *connection) handleNewConnectionIDFrame(f *wire.NewConnectionIDFrame) error {
+
+	// PACKET_NUMBER_TAG
+	if packet_setting.ConnectionInitiationBPFHandler != nil {
+		// Call the handler that makes sure that the initiation of the connection
+		// is handled correctly with all the bpf maps
+		packet_setting.ConnectionInitiationBPFHandler(f.ConnectionID.Bytes(), uint8(f.ConnectionID.Len()), s)
+	}
+
 	return s.connIDManager.Add(f)
 }
 
 func (s *connection) handleRetireConnectionIDFrame(f *wire.RetireConnectionIDFrame, destConnID protocol.ConnectionID) error {
+
+	// PACKET_NUMBER_TAG
+	if packet_setting.ConnectionRetirementBPFHandler != nil {
+		// Call the handler that makes sure that the retirement of the connection
+		// is handled correctly with all the bpf maps
+		packet_setting.ConnectionRetirementBPFHandler(destConnID.Bytes(), uint8(destConnID.Len()), s)
+	}
+
 	return s.connIDGenerator.Retire(f.SequenceNumber, destConnID)
 }
 

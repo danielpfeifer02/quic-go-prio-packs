@@ -12,7 +12,6 @@ import (
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
-	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 type connCapabilities struct {
@@ -126,13 +125,6 @@ func (h *packetHandlerMap) Add(id protocol.ConnectionID, handler packetHandler) 
 		return false
 	}
 
-	// PACKET_NUMBER_TAG
-	if packet_setting.ConnectionInitiationBPFHandler != nil {
-		// Call the handler that makes sure that the initiation of the connection
-		// is handled correctly with all the bpf maps
-		packet_setting.ConnectionInitiationBPFHandler(id.Bytes(), uint8(id.Len()))
-	}
-
 	h.handlers[id] = handler
 	h.logger.Debugf("Adding connection ID %s.", id)
 	return true
@@ -160,13 +152,6 @@ func (h *packetHandlerMap) Remove(id protocol.ConnectionID) {
 }
 
 func (h *packetHandlerMap) Retire(id protocol.ConnectionID) {
-	// PACKET_NUMBER_TAG
-	if packet_setting.ConnectionRetirementBPFHandler != nil {
-		// Call the handler that makes sure that the retirement of the connection
-		// is handled correctly with all the bpf maps
-		packet_setting.ConnectionRetirementBPFHandler(id.Bytes(), uint8(id.Len()))
-	}
-
 	h.logger.Debugf("Retiring connection ID %s in %s.", id, h.deleteRetiredConnsAfter)
 	time.AfterFunc(h.deleteRetiredConnsAfter, func() {
 		h.mutex.Lock()
