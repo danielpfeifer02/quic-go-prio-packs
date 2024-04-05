@@ -118,6 +118,7 @@ func retirementBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection
 }
 
 func packetNumberBPFHanlder(pn int64, conn packet_setting.QuicConnection) {
+	// TODO: pn 0 seems to be used multiple times in the beginning?
 	fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
 }
 
