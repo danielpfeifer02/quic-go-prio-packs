@@ -97,6 +97,9 @@ func echoServer() error {
 
 	}
 
+	connid := conn.GetDestConnID(stream)
+	fmt.Println("Connection ID: ", connid.String())
+
 	return nil
 }
 
