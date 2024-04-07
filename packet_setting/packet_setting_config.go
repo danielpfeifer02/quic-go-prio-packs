@@ -35,5 +35,6 @@ var (
 	OMIT_CONN_ID_RETIREMENT         bool                                          = false
 	ConnectionRetirementBPFHandler  func(id []byte, l uint8, conn QuicConnection) = nil
 	ConnectionInitiationBPFHandler  func(id []byte, l uint8, conn QuicConnection) = nil
+	ConnectionUpdateBPFHandler      func(id []byte, l uint8, conn QuicConnection) = nil
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
 )
