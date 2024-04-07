@@ -437,6 +437,11 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			}
 			connID = p.getDestConnID(prio)
 
+			// BPF_MAP_TAG
+			if packet_setting.ConnectionUpdateBPFHandler != nil {
+				packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
+			}
+
 		} else if p.perspective == protocol.PerspectiveClient && !onlyAck { // 0-RTT packets can't contain ACK frames
 			var err error
 			zeroRTTSealer, err = p.cryptoSetup.Get0RTTSealer()
@@ -549,6 +554,12 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 		prio = max(prio, prio_tmp)
 	}
 	connID := p.getDestConnID(prio)
+
+	// BPF_MAP_TAG
+	if packet_setting.ConnectionUpdateBPFHandler != nil {
+		packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
+	}
+
 	return p.appendShortHeaderPacket(buf, connID, pn, pnLen, kp, pl, 0, maxPacketSize, sealer, false, v)
 }
 
@@ -757,6 +768,12 @@ func (p *packetPacker) MaybePackProbePacket(encLevel protocol.EncryptionLevel, m
 		// TODOME: should probe packets consider the priority?
 		// for now we can probably omit them since they are rare
 		connID := p.getDestConnID(priority_setting.PrioProbePacket)
+
+		// BPF_MAP_TAG
+		if packet_setting.ConnectionUpdateBPFHandler != nil {
+			packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
+		}
+
 		pn, pnLen := p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 		hdrLen := wire.ShortHeaderLen(connID, pnLen)
 		pl := p.maybeGetAppDataPacket(maxPacketSize-protocol.ByteCount(s.Overhead())-hdrLen, false, true, v)
@@ -834,6 +851,12 @@ func (p *packetPacker) PackMTUProbePacket(ping ackhandler.Frame, size protocol.B
 	// TODOME: should MTU probe packets consider the priority?
 	// i guess MTU probing is rare and likely to be high prio
 	connID := p.getDestConnID(priority_setting.PrioMTUProbePacket)
+
+	// BPF_MAP_TAG
+	if packet_setting.ConnectionUpdateBPFHandler != nil {
+		packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
+	}
+
 	pn, pnLen := p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 	padding := size - p.shortHeaderPacketLength(connID, pnLen, pl) - protocol.ByteCount(s.Overhead())
 	kp := s.KeyPhase()
@@ -854,6 +877,11 @@ func (p *packetPacker) getLongHeader(encLevel protocol.EncryptionLevel, v protoc
 	// since they are not the norm and only used for stuff like initial handshake
 	// or retransmissions
 	hdr.DestConnectionID = p.getDestConnID(priority_setting.PrioLongHeaderPacket)
+
+	// BPF_MAP_TAG
+	if packet_setting.ConnectionUpdateBPFHandler != nil {
+		packet_setting.ConnectionUpdateBPFHandler(hdr.DestConnectionID.Bytes(), uint8(hdr.DestConnectionID.Len()), p.connection)
+	}
 
 	//nolint:exhaustive // 1-RTT packets are not long header packets.
 	switch encLevel {

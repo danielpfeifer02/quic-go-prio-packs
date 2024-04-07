@@ -55,6 +55,7 @@ func echoServer() error {
 	packet_setting.ConnectionInitiationBPFHandler = initiationBPFHandler
 	packet_setting.ConnectionRetirementBPFHandler = retirementBPFHandler
 	packet_setting.PacketNumberIncrementBPFHandler = packetNumberBPFHanlder
+	packet_setting.ConnectionUpdateBPFHandler = updateBPFHandler
 
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
@@ -97,6 +98,10 @@ func echoServer() error {
 	}
 
 	return nil
+}
+
+func updateBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
+	fmt.Println("Update BPF Handler called")
 }
 
 func initiationBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
