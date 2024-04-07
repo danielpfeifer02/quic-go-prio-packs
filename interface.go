@@ -257,6 +257,9 @@ type Connection interface {
 	// a packet number of a packet.
 	Lock()
 	Unlock()
+
+	// BPF_MAP_TAG
+	GetDestConnID(Stream) ConnectionID
 }
 
 // An EarlyConnection is a connection that is handshaking.
