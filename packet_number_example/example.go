@@ -22,6 +22,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
+	"github.com/danielpfeifer02/quic-go-prio-packs/qlog"
 )
 
 const addr = "localhost:4242"
@@ -56,6 +57,7 @@ func echoServer() error {
 	packet_setting.ConnectionRetirementBPFHandler = retirementBPFHandler
 	packet_setting.PacketNumberIncrementBPFHandler = packetNumberBPFHanlder
 	packet_setting.ConnectionUpdateBPFHandler = updateBPFHandler
+	packet_setting.AckTranslationBPFHandler = ackHandler
 
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
@@ -101,6 +103,11 @@ func echoServer() error {
 	fmt.Println("Connection ID: ", connid.String())
 
 	return nil
+}
+
+func ackHandler(pn int64, conn packet_setting.QuicConnection) (int64, error) {
+	fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
+	return pn + 1, nil
 }
 
 func updateBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
@@ -211,5 +218,7 @@ func generateTLSConfig() *tls.Config {
 }
 
 func generateQUICConfig() *quic.Config {
-	return &quic.Config{}
+	return &quic.Config{
+		Tracer: qlog.DefaultTracer,
+	}
 }

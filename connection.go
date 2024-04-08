@@ -1550,6 +1550,10 @@ func (s *connection) handleHandshakeDoneFrame() error {
 }
 
 func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.EncryptionLevel) error {
+
+	// BPF_MAP_TAG
+	frame.UpdateAckRanges(s)
+
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
 		return err
