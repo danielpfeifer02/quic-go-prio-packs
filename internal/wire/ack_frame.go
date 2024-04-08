@@ -3,11 +3,13 @@ package wire
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
@@ -238,6 +240,7 @@ func (f *AckFrame) LowestAcked() protocol.PacketNumber {
 
 // AcksPacket determines if this ACK frame acks a certain packet number
 func (f *AckFrame) AcksPacket(p protocol.PacketNumber) bool {
+
 	if p < f.LowestAcked() || p > f.LargestAcked() {
 		return false
 	}
@@ -263,4 +266,42 @@ func (f *AckFrame) Reset() {
 
 func encodeAckDelay(delay time.Duration) uint64 {
 	return uint64(delay.Nanoseconds() / (1000 * (1 << protocol.AckDelayExponent)))
+}
+
+// BPF_MAP_TAG
+func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) {
+
+	if packet_setting.AckTranslationBPFHandler == nil {
+		return
+	}
+
+	lowest, err := packet_setting.AckTranslationBPFHandler(int64(f.LowestAcked()), conn)
+	if err != nil {
+		fmt.Println("Error in AckTranslationBPFHandler: ", err)
+		return
+	}
+	largest, err := packet_setting.AckTranslationBPFHandler(int64(f.LargestAcked()), conn)
+	if err != nil {
+		fmt.Println("Error in AckTranslationBPFHandler: ", err)
+		return
+	}
+
+	// TODO: this seems like there is bound to be a bug here somewhere but for now
+	// TODO: i'll just see where it goes
+
+	f.AckRanges[len(f.AckRanges)-1].Smallest = protocol.PacketNumber(lowest)
+	secondLowest, _ := packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[len(f.AckRanges)-1].Largest), conn)
+	f.AckRanges[len(f.AckRanges)-1].Largest = protocol.PacketNumber(secondLowest)
+
+	f.AckRanges[0].Largest = protocol.PacketNumber(largest)
+	secondLargest, _ := packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[0].Smallest), conn)
+	f.AckRanges[0].Smallest = protocol.PacketNumber(secondLargest)
+
+	for i := 1; i < len(f.AckRanges)-1; i++ {
+		largest, _ = packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[i].Largest), conn)
+		lowest, _ = packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[i].Smallest), conn)
+		f.AckRanges[i].Largest = protocol.PacketNumber(largest)
+		f.AckRanges[i].Smallest = protocol.PacketNumber(lowest)
+	}
+
 }
