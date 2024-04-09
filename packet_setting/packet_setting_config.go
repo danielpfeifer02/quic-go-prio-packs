@@ -39,6 +39,6 @@ var (
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
 
 	// Important note: this function should return "pn, err" in case of an error
-	AckTranslationBPFHandler  func(pn int64, conn QuicConnection) (int64, error) = nil
-	CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil
+	AckTranslationBPFHandler func(pn int64, conn QuicConnection) (int64, error) = nil
+	// CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil // TODO: remove
 )
