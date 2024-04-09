@@ -323,7 +323,7 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 			// Given that the user-space program correctly sets the
 			// largest setn packet number given by the bpf program
 			// this should not occur.
-			ErrorMessage: "received ACK for an unsent packet",
+			ErrorMessage: fmt.Sprintf("received ACK for an unsent packet (largest acked: %d, largest sent: %d)", largestAcked, pnSpace.largestSent),
 		}
 	}
 
