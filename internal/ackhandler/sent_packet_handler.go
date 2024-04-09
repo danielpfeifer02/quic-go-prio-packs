@@ -323,7 +323,8 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 			// Given that the user-space program correctly sets the
 			// largest setn packet number given by the bpf program
 			// this should not occur.
-			ErrorMessage: fmt.Sprintf("received ACK for an unsent packet (largest acked: %d, largest sent: %d)", largestAcked, pnSpace.largestSent),
+			ErrorMessage: fmt.Sprintf("received ACK for an unsent packet (largest acked: %d, largest sent: %d, Enc: %s)",
+				largestAcked, pnSpace.largestSent, encLevel.String()),
 		}
 	}
 
@@ -969,4 +970,10 @@ func (h *sentPacketHandler) SetHighestSentPacketNumber(pn protocol.PacketNumber)
 	}
 
 	h.appDataPackets.largestSent = pn
+
+	if !packet_setting.SET_ONLY_APP_DATA {
+		// TODO: what effect does it have to just set all the other packet numbers to this value?
+		h.initialPackets.largestSent = pn
+		h.handshakePackets.largestSent = pn
+	}
 }
