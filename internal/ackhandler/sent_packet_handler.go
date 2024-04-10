@@ -973,7 +973,11 @@ func (h *sentPacketHandler) SetHighestSentPacketNumber(pn protocol.PacketNumber)
 
 	if !packet_setting.SET_ONLY_APP_DATA {
 		// TODO: what effect does it have to just set all the other packet numbers to this value?
-		h.initialPackets.largestSent = pn
-		h.handshakePackets.largestSent = pn
+		if h.initialPackets != nil {
+			h.initialPackets.largestSent = pn
+		}
+		if h.handshakePackets != nil {
+			h.handshakePackets.largestSent = pn
+		}
 	}
 }

@@ -33,7 +33,8 @@ type QuicConnection interface {
 var (
 	ALLOW_SETTING_PN                bool                                          = false
 	OMIT_CONN_ID_RETIREMENT         bool                                          = false
-	SET_ONLY_APP_DATA               bool                                          = false
+	SET_ONLY_APP_DATA               bool                                          = true
+	PRINT_PACKET_RECEIVING_INFO     bool                                          = false
 	ConnectionRetirementBPFHandler  func(id []byte, l uint8, conn QuicConnection) = nil
 	ConnectionInitiationBPFHandler  func(id []byte, l uint8, conn QuicConnection) = nil
 	ConnectionUpdateBPFHandler      func(id []byte, l uint8, conn QuicConnection) = nil
