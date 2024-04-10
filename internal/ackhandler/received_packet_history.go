@@ -1,11 +1,13 @@
 package ackhandler
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	list "github.com/danielpfeifer02/quic-go-prio-packs/internal/utils/linkedlist"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 // interval is an interval from one PacketNumber to the other
@@ -39,8 +41,20 @@ func newReceivedPacketHistory() *receivedPacketHistory {
 func (h *receivedPacketHistory) ReceivedPacket(p protocol.PacketNumber) bool /* is a new packet (and not a duplicate / delayed packet) */ {
 	// ignore delayed packets, if we already deleted the range
 	if p < h.deletedBelow {
+
+		// PACKET_NUMBER_TAG
+		if packet_setting.PRINT_PACKET_RECEIVING_INFO {
+			fmt.Println("ReceivedPacket: Ignoring delayed packet with pn", p, "because it is below deletedBelow", h.deletedBelow)
+		}
+
 		return false
 	}
+
+	// PACKET_NUMBER_TAG
+	if packet_setting.PRINT_PACKET_RECEIVING_INFO {
+		fmt.Println("ReceivedPacket: Received packet with pn", p)
+	}
+
 	isNew := h.addToRanges(p)
 	h.maybeDeleteOldRanges()
 	return isNew

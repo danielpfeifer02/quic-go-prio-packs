@@ -58,6 +58,7 @@ func echoServer() error {
 	packet_setting.PacketNumberIncrementBPFHandler = packetNumberBPFHanlder
 	packet_setting.ConnectionUpdateBPFHandler = updateBPFHandler
 	packet_setting.AckTranslationBPFHandler = ackHandler
+	packet_setting.PRINT_PACKET_RECEIVING_INFO = true
 
 	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
@@ -107,7 +108,7 @@ func echoServer() error {
 
 func ackHandler(pn int64, conn packet_setting.QuicConnection) (int64, error) {
 	fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
-	return pn + 1, nil
+	return pn, nil
 }
 
 func updateBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
