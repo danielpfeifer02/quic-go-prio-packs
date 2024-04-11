@@ -55,7 +55,7 @@ type sendStream struct {
 	flowController flowcontrol.StreamFlowController
 
 	// PRIO_PACKS_TAG
-	priority protocol.StreamPriority
+	priority protocol.Priority
 }
 
 var (
@@ -459,13 +459,13 @@ func (s *sendStream) signalWrite() {
 
 // PRIO_PACKS_TAG
 // Priority returns the priority of the stream
-func (s *sendStream) Priority() protocol.StreamPriority {
+func (s *sendStream) Priority() protocol.Priority {
 	return s.priority
 }
 
 // PRIO_PACKS_TAG
 // SetPriority sets the priority of the stream
-func (s *sendStream) SetPriority(priority protocol.StreamPriority) {
+func (s *sendStream) SetPriority(priority protocol.Priority) {
 	s.priority = priority
 }
 

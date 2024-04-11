@@ -41,6 +41,9 @@ type payload struct {
 	frames       []ackhandler.Frame
 	ack          *wire.AckFrame
 	length       protocol.ByteCount
+
+	// DATAGRAM_PRIO_TAG
+	priority protocol.Priority
 }
 
 type longHeaderPacket struct {
@@ -122,7 +125,7 @@ type packetPacker struct {
 	connection Connection
 	srcConnID  protocol.ConnectionID
 	// PRIO_PACKS_TAG
-	getDestConnID func(StreamPriority) protocol.ConnectionID
+	getDestConnID func(Priority) protocol.ConnectionID
 
 	perspective protocol.Perspective
 	cryptoSetup sealingManager
@@ -148,7 +151,7 @@ func newPacketPacker(
 	associatedConnection Connection,
 	srcConnID protocol.ConnectionID,
 	// PRIO_PACKS_TAG
-	getDestConnID func(StreamPriority) protocol.ConnectionID,
+	getDestConnID func(Priority) protocol.ConnectionID,
 	initialStream, handshakeStream cryptoStream,
 	packetNumberManager packetNumberManager,
 	retransmissionQueue *retransmissionQueue,
@@ -431,10 +434,15 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			for i := range oneRTTPayload.streamFrames {
 				f := &oneRTTPayload.streamFrames[i]
 				sid := f.Frame.StreamID
-				prio_tmp := p.GetStreamPriority(sid) // TODOME how to get the priority?
+				prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
 				// fmt.Printf("stream with id %d has priority %d (coalesced)\n", sid, prio_tmp)
 				prio = max(prio, prio_tmp)
 			}
+
+			// DATAGRAM_PRIO_TAG
+			// TODOME: use only the payload priority sufficient?
+			prio = max(prio, oneRTTPayload.priority)
+
 			connID = p.getDestConnID(prio)
 
 			// BPF_MAP_TAG
@@ -549,10 +557,15 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	for i := range pl.streamFrames {
 		f := &pl.streamFrames[i]
 		sid := f.Frame.StreamID
-		prio_tmp := p.GetStreamPriority(sid) // TODOME how to get the priority?
+		prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
 		// fmt.Printf("stream with id %d has priority %d (append)\n", sid, prio_tmp)
 		prio = max(prio, prio_tmp)
 	}
+
+	// DATAGRAM_PRIO_TAG
+	// TODOME: use only the payload priority sufficient?
+	prio = max(prio, pl.priority)
+
 	connID := p.getDestConnID(prio)
 
 	// BPF_MAP_TAG
@@ -700,6 +713,10 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			if size <= maxFrameSize-pl.length { // DATAGRAM frame fits
 				pl.frames = append(pl.frames, ackhandler.Frame{Frame: f})
 				pl.length += size
+
+				// DATAGRAM_PRIO_TAG
+				pl.priority = max(pl.priority, f.Priority)
+
 				p.datagramQueue.Pop()
 			} else if !hasAck {
 				// The DATAGRAM frame doesn't fit, and the packet doesn't contain an ACK.
@@ -1062,6 +1079,6 @@ func (p *packetPacker) SetToken(token []byte) {
 }
 
 // PRIO_PACKS_TAG
-func (p *packetPacker) GetStreamPriority(streamID protocol.StreamID) StreamPriority {
-	return p.connection.GetStreamPriority(streamID)
+func (p *packetPacker) GetPriority(streamID protocol.StreamID) Priority {
+	return p.connection.GetPriority(streamID)
 }

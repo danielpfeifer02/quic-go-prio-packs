@@ -4,8 +4,8 @@ package protocol
 type StreamType uint8
 
 // PRIO_PACKS_TAG
-// StreamPriority encodes the priority of the stream
-type StreamPriority int8
+// Priority encodes the priority of the stream
+type Priority int8
 
 const (
 	// StreamTypeUni is a unidirectional stream

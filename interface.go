@@ -17,8 +17,8 @@ import (
 type StreamID = protocol.StreamID
 
 // PRIO_PACKS_TAG
-// StreamPriority is the priority of a QUIC stream.
-type StreamPriority = protocol.StreamPriority
+// Priority is the priority of a QUIC stream.
+type Priority = protocol.Priority
 
 // A Version is a QUIC version number.
 type Version = protocol.Version
@@ -81,10 +81,10 @@ type Stream interface {
 	SetDeadline(t time.Time) error
 	// PRIO_PACKS_TAG
 	// Priority returns the stream specific priority used for potential adaptive streaming
-	Priority() StreamPriority
+	Priority() Priority
 	// PRIO_PACKS_TAG
 	// SetPriority sets the stream specific priority used for potential adaptive streaming
-	SetPriority(StreamPriority)
+	SetPriority(Priority)
 }
 
 // A ReceiveStream is a unidirectional Receive Stream.
@@ -111,10 +111,10 @@ type ReceiveStream interface {
 	SetReadDeadline(t time.Time) error
 	// PRIO_PACKS_TAG
 	// Priority returns the stream specific priority used for potential adaptive streaming
-	Priority() StreamPriority
+	Priority() Priority
 	// PRIO_PACKS_TAG
 	// SetPriority sets the stream specific priority used for potential adaptive streaming
-	SetPriority(StreamPriority)
+	SetPriority(Priority)
 }
 
 // A SendStream is a unidirectional Send Stream.
@@ -153,10 +153,10 @@ type SendStream interface {
 	SetWriteDeadline(t time.Time) error
 	// PRIO_PACKS_TAG
 	// Priority returns the stream specific priority used for potential adaptive streaming
-	Priority() StreamPriority
+	Priority() Priority
 	// PRIO_PACKS_TAG
 	// SetPriority sets the stream specific priority used for potential adaptive streaming
-	SetPriority(StreamPriority)
+	SetPriority(Priority)
 }
 
 // A Connection is a QUIC connection between two peers.
@@ -186,7 +186,7 @@ type Connection interface {
 	OpenStream() (Stream, error)
 	// PRIO_PACKS_TAG
 	// same as OpenStream, but with priority
-	OpenStreamWithPriority(StreamPriority) (Stream, error)
+	OpenStreamWithPriority(Priority) (Stream, error)
 
 	// OpenStreamSync opens a new bidirectional QUIC stream.
 	// It blocks until a new stream can be opened.
@@ -198,7 +198,7 @@ type Connection interface {
 	OpenStreamSync(context.Context) (Stream, error)
 	// PRIO_PACKS_TAG
 	// same as OpenStreamSync, but with priority
-	OpenStreamSyncWithPriority(context.Context, StreamPriority) (Stream, error)
+	OpenStreamSyncWithPriority(context.Context, Priority) (Stream, error)
 
 	// OpenUniStream opens a new outgoing unidirectional QUIC stream.
 	// If the error is non-nil, it satisfies the net.Error interface.
@@ -207,7 +207,7 @@ type Connection interface {
 	OpenUniStream() (SendStream, error)
 	// PRIO_PACKS_TAG
 	// same as OpenUniStream, but with priotity
-	OpenUniStreamWithPriority(StreamPriority) (SendStream, error)
+	OpenUniStreamWithPriority(Priority) (SendStream, error)
 
 	// OpenUniStreamSync opens a new outgoing unidirectional QUIC stream.
 	// It blocks until a new stream can be opened.
@@ -216,7 +216,7 @@ type Connection interface {
 	OpenUniStreamSync(context.Context) (SendStream, error)
 	// PRIO_PACKS_TAG
 	// same as OpenUniStreamSync, but with priority
-	OpenUniStreamSyncWithPriority(context.Context, StreamPriority) (SendStream, error)
+	OpenUniStreamSyncWithPriority(context.Context, Priority) (SendStream, error)
 
 	// LocalAddr returns the local address.
 	LocalAddr() net.Addr
@@ -239,12 +239,16 @@ type Connection interface {
 	// In addition, a datagram may be dropped before being sent out if the available packet size suddenly decreases.
 	// If the payload is too large to be sent at the current time, a DatagramTooLargeError is returned.
 	SendDatagram(payload []byte) error
+
+	// DATAGRAM_PRIO_TAG
+	SendDatagramWithPriority(p []byte, prio protocol.Priority) error
+
 	// ReceiveDatagram gets a message received in a datagram, as specified in RFC 9221.
 	ReceiveDatagram(context.Context) ([]byte, error)
 
 	// PRIO_PACKS_TAG
 	// get the priority of a corresponding stream using the streamID
-	GetStreamPriority(StreamID) StreamPriority
+	GetPriority(StreamID) Priority
 
 	// PACKET_NUMBER_TAG
 	// SetPacketNumber sets the packet number for the next packet sent on the connection.

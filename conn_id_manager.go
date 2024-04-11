@@ -207,7 +207,7 @@ func (h *connIDManager) shouldUpdateConnID() bool {
 // prio == -1 means user does not care about priority
 // prio == 0 means user wants to switch to low priority connection ID
 // prio == 1 means user wants to switch to high priority connection ID
-func (h *connIDManager) Get(prio StreamPriority) protocol.ConnectionID {
+func (h *connIDManager) Get(prio Priority) protocol.ConnectionID {
 	if h.shouldUpdateConnID() {
 		h.updateConnectionID()
 	}
@@ -224,7 +224,7 @@ func (h *connIDManager) SetHandshakeComplete() {
 }
 
 // PRIO_PACKS_TAG
-func (h *connIDManager) SwitchToPriorityID(prio StreamPriority) {
+func (h *connIDManager) SwitchToPriorityID(prio Priority) {
 	currentConnId := h.activeConnectionID
 	if currentConnId.Bytes()[0] == byte(prio) || h.queue.Len() == 0 {
 		return
