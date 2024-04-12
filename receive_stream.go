@@ -50,7 +50,7 @@ type receiveStream struct {
 	flowController flowcontrol.StreamFlowController
 
 	// PRIO_PACKS_TAG
-	priority protocol.StreamPriority
+	priority protocol.Priority
 }
 
 var (
@@ -334,12 +334,12 @@ func (s *receiveStream) signalRead() {
 
 // PRIO_PACKS_TAG
 // Priority returns the priority of the stream
-func (s *receiveStream) Priority() protocol.StreamPriority {
+func (s *receiveStream) Priority() protocol.Priority {
 	return s.priority
 }
 
 // PRIO_PACKS_TAG
 // SetPriority sets the priority of the stream
-func (s *receiveStream) SetPriority(priority protocol.StreamPriority) {
+func (s *receiveStream) SetPriority(priority protocol.Priority) {
 	s.priority = priority
 }

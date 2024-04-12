@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
@@ -18,10 +19,13 @@ var MaxDatagramSize protocol.ByteCount = 16383
 type DatagramFrame struct {
 	DataLenPresent bool
 	Data           []byte
+
+	// DATAGRAM_PRIO_TAG
+	Priority protocol.Priority
 }
 
 func parseDatagramFrame(r *bytes.Reader, typ uint64, _ protocol.Version) (*DatagramFrame, error) {
-	f := &DatagramFrame{}
+	f := &DatagramFrame{Priority: priority_setting.NoPriority}
 	f.DataLenPresent = typ&0x1 > 0
 
 	var length uint64

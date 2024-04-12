@@ -41,6 +41,9 @@ type payload struct {
 	frames       []ackhandler.Frame
 	ack          *wire.AckFrame
 	length       protocol.ByteCount
+
+	// DATAGRAM_PRIO_TAG
+	priority protocol.Priority
 }
 
 type longHeaderPacket struct {
@@ -122,7 +125,7 @@ type packetPacker struct {
 	connection Connection
 	srcConnID  protocol.ConnectionID
 	// PRIO_PACKS_TAG
-	getDestConnID func(StreamPriority) protocol.ConnectionID
+	getDestConnID func(Priority) protocol.ConnectionID
 
 	perspective protocol.Perspective
 	cryptoSetup sealingManager
@@ -148,7 +151,7 @@ func newPacketPacker(
 	associatedConnection Connection,
 	srcConnID protocol.ConnectionID,
 	// PRIO_PACKS_TAG
-	getDestConnID func(StreamPriority) protocol.ConnectionID,
+	getDestConnID func(Priority) protocol.ConnectionID,
 	initialStream, handshakeStream cryptoStream,
 	packetNumberManager packetNumberManager,
 	retransmissionQueue *retransmissionQueue,
@@ -244,6 +247,9 @@ func (p *packetPacker) packConnectionClose(
 		pl := payload{
 			frames: []ackhandler.Frame{{Frame: ccf}},
 			length: ccf.Length(v),
+
+			// PRIO_PACKS_TAG
+			priority: priority_setting.PrioConnectionClosePacket,
 		}
 
 		var sealer sealer
@@ -275,7 +281,7 @@ func (p *packetPacker) packConnectionClose(
 			// PRIO_PACKS_TAG
 			// TODOME: necessary to adapt that to stream? connection close
 			// should probably always be sent with high prio connection id
-			connID = p.getDestConnID(priority_setting.PrioConnectionClosePacket)
+			connID = p.getDestConnID(pl.priority)
 			oneRTTPacketNumber, oneRTTPacketNumberLen = p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 			size += p.shortHeaderPacketLength(connID, oneRTTPacketNumberLen, pl)
 		} else {
@@ -431,10 +437,14 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			for i := range oneRTTPayload.streamFrames {
 				f := &oneRTTPayload.streamFrames[i]
 				sid := f.Frame.StreamID
-				prio_tmp := p.GetStreamPriority(sid) // TODOME how to get the priority?
+				prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
 				// fmt.Printf("stream with id %d has priority %d (coalesced)\n", sid, prio_tmp)
 				prio = max(prio, prio_tmp)
 			}
+
+			// DATAGRAM_PRIO_TAG
+			// TODOME: use only the payload priority sufficient?
+			prio = max(prio, oneRTTPayload.priority)
 			connID = p.getDestConnID(prio)
 
 			// BPF_MAP_TAG
@@ -549,10 +559,14 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	for i := range pl.streamFrames {
 		f := &pl.streamFrames[i]
 		sid := f.Frame.StreamID
-		prio_tmp := p.GetStreamPriority(sid) // TODOME how to get the priority?
+		prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
 		// fmt.Printf("stream with id %d has priority %d (append)\n", sid, prio_tmp)
 		prio = max(prio, prio_tmp)
 	}
+
+	// DATAGRAM_PRIO_TAG
+	// TODOME: use only the payload priority sufficient?
+	prio = max(prio, pl.priority)
 	connID := p.getDestConnID(prio)
 
 	// BPF_MAP_TAG
@@ -600,6 +614,9 @@ func (p *packetPacker) maybeGetCryptoPacket(maxPacketSize protocol.ByteCount, en
 	}
 
 	var pl payload
+	// DATAGRAM_PRIO_TAG
+	pl.priority = priority_setting.NoPriority
+
 	if ack != nil {
 		pl.ack = ack
 		pl.length = ack.Length(v)
@@ -686,6 +703,9 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 
 	var hasAck bool
 	var pl payload
+	// DATAGRAM_PRIO_TAG
+	pl.priority = priority_setting.NoPriority
+
 	if ackAllowed {
 		if ack := p.acks.GetAckFrame(protocol.Encryption1RTT, !hasRetransmission && !hasData); ack != nil {
 			pl.ack = ack
@@ -700,6 +720,10 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			if size <= maxFrameSize-pl.length { // DATAGRAM frame fits
 				pl.frames = append(pl.frames, ackhandler.Frame{Frame: f})
 				pl.length += size
+
+				// DATAGRAM_PRIO_TAG
+				pl.priority = max(pl.priority, f.Priority)
+
 				p.datagramQueue.Pop()
 			} else if !hasAck {
 				// The DATAGRAM frame doesn't fit, and the packet doesn't contain an ACK.
@@ -792,6 +816,9 @@ func (p *packetPacker) MaybePackProbePacket(encLevel protocol.EncryptionLevel, m
 
 	var hdr *wire.ExtendedHeader
 	var pl payload
+	// DATAGRAM_PRIO_TAG
+	pl.priority = priority_setting.NoPriority
+
 	var sealer handshake.LongHeaderSealer
 	//nolint:exhaustive // Probe packets are never sent for 0-RTT.
 	switch encLevel {
@@ -1062,6 +1089,6 @@ func (p *packetPacker) SetToken(token []byte) {
 }
 
 // PRIO_PACKS_TAG
-func (p *packetPacker) GetStreamPriority(streamID protocol.StreamID) StreamPriority {
-	return p.connection.GetStreamPriority(streamID)
+func (p *packetPacker) GetPriority(streamID protocol.StreamID) Priority {
+	return p.connection.GetPriority(streamID)
 }

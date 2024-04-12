@@ -15,6 +15,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 var errListenerAlreadySet = errors.New("listener already set")
@@ -285,7 +286,8 @@ func (t *Transport) init(allowZeroLengthConnIDs bool) error {
 			// Once the connection has more than 1 connection IDs this problem is gone.
 			// TODOME: temporary fix, remove once we have a better solution
 			t.connIDLen = 16
-			t.connIDGenerator = &protocol.PriorityConnectionIDGenerator{ConnLen: t.connIDLen, PriorityCounter: 1, NumberOfPriorities: 2}
+			t.connIDGenerator = &protocol.PriorityConnectionIDGenerator{ConnLen: t.connIDLen,
+				PriorityCounter: priority_setting.LowestPriority, NumberOfPriorities: priority_setting.NumberOfPriorities}
 		}
 
 		getMultiplexer().AddConn(t.Conn)

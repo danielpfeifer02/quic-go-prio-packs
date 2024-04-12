@@ -15,7 +15,7 @@ type QuicConnection interface {
 
 	// PRIO_PACKS_TAG
 	// get the priority of a corresponding stream using the streamID
-	// GetStreamPriority(StreamID) StreamPriority
+	// GetPriority(StreamID) Priority
 
 	// PACKET_NUMBER_TAG
 	// SetPacketNumber sets the packet number for the next packet sent on the connection.

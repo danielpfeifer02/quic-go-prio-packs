@@ -157,7 +157,10 @@ func (t *PriorityConnectionIDGenerator) GenerateConnectionID() (ConnectionID, er
 
 	// add priority counter as the first byte of the connection ID and
 	c.b[0] = byte(t.PriorityCounter)
-	t.PriorityCounter = (t.PriorityCounter + 1) % int8(t.NumberOfPriorities)
+
+	// first modulo, then increment since 0 is encoding for NoPriority and
+	// actual priorities start at 1 and go up to NumberOfPriorities
+	t.PriorityCounter = (t.PriorityCounter % int8(t.NumberOfPriorities)) + 1
 	return c, nil
 }
 
