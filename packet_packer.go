@@ -43,7 +43,7 @@ type payload struct {
 	length       protocol.ByteCount
 
 	// DATAGRAM_PRIO_TAG
-	priority protocol.Priority
+	priority priority_setting.Priority
 }
 
 type longHeaderPacket struct {

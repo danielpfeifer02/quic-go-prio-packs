@@ -21,7 +21,7 @@ type DatagramFrame struct {
 	Data           []byte
 
 	// DATAGRAM_PRIO_TAG
-	Priority protocol.Priority
+	Priority priority_setting.Priority
 }
 
 func parseDatagramFrame(r *bytes.Reader, typ uint64, _ protocol.Version) (*DatagramFrame, error) {

@@ -11,6 +11,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/handshake"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 // The StreamID is the ID of a QUIC stream.
@@ -18,7 +19,7 @@ type StreamID = protocol.StreamID
 
 // PRIO_PACKS_TAG
 // Priority is the priority of a QUIC stream.
-type Priority = protocol.Priority
+type Priority = priority_setting.Priority
 
 // A Version is a QUIC version number.
 type Version = protocol.Version
@@ -241,7 +242,7 @@ type Connection interface {
 	SendDatagram(payload []byte) error
 
 	// DATAGRAM_PRIO_TAG
-	SendDatagramWithPriority(p []byte, prio protocol.Priority) error
+	SendDatagramWithPriority(p []byte, prio priority_setting.Priority) error
 
 	// ReceiveDatagram gets a message received in a datagram, as specified in RFC 9221.
 	ReceiveDatagram(context.Context) ([]byte, error)

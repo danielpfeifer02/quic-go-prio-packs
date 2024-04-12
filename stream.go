@@ -10,6 +10,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/flowcontrol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 type deadlineError struct{}
@@ -80,7 +81,7 @@ type stream struct {
 	sender                 streamSender
 	receiveStreamCompleted bool
 	sendStreamCompleted    bool
-	priority               protocol.Priority
+	priority               priority_setting.Priority
 }
 
 var _ Stream = &stream{}
@@ -148,12 +149,12 @@ func (s *stream) checkIfCompleted() {
 
 // PRIO_PACKS_TAG
 // Priority returns the priority of the stream
-func (s *stream) Priority() protocol.Priority {
+func (s *stream) Priority() priority_setting.Priority {
 	return s.priority
 }
 
 // PRIO_PACKS_TAG
 // SetPriority sets the priority of the stream
-func (s *stream) SetPriority(priority protocol.Priority) {
+func (s *stream) SetPriority(priority priority_setting.Priority) {
 	s.priority = priority
 }
