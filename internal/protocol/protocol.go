@@ -130,7 +130,7 @@ const MinConnectionIDLenInitial = 8
 const DefaultAckDelayExponent = 3
 
 // DefaultActiveConnectionIDLimit is the default active connection ID limit
-const DefaultActiveConnectionIDLimit = 2
+const DefaultActiveConnectionIDLimit = 2 // TODOME: might have to change once more priorities are available
 
 // MaxAckDelayExponent is the maximum ack delay exponent
 const MaxAckDelayExponent = 20

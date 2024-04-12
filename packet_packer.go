@@ -247,6 +247,9 @@ func (p *packetPacker) packConnectionClose(
 		pl := payload{
 			frames: []ackhandler.Frame{{Frame: ccf}},
 			length: ccf.Length(v),
+
+			// PRIO_PACKS_TAG
+			priority: priority_setting.PrioConnectionClosePacket,
 		}
 
 		var sealer sealer
@@ -278,7 +281,7 @@ func (p *packetPacker) packConnectionClose(
 			// PRIO_PACKS_TAG
 			// TODOME: necessary to adapt that to stream? connection close
 			// should probably always be sent with high prio connection id
-			connID = p.getDestConnID(priority_setting.PrioConnectionClosePacket)
+			connID = p.getDestConnID(pl.priority)
 			oneRTTPacketNumber, oneRTTPacketNumberLen = p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 			size += p.shortHeaderPacketLength(connID, oneRTTPacketNumberLen, pl)
 		} else {
@@ -442,7 +445,6 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			// DATAGRAM_PRIO_TAG
 			// TODOME: use only the payload priority sufficient?
 			prio = max(prio, oneRTTPayload.priority)
-
 			connID = p.getDestConnID(prio)
 
 			// BPF_MAP_TAG
@@ -565,7 +567,6 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	// DATAGRAM_PRIO_TAG
 	// TODOME: use only the payload priority sufficient?
 	prio = max(prio, pl.priority)
-
 	connID := p.getDestConnID(prio)
 
 	// BPF_MAP_TAG
@@ -613,6 +614,9 @@ func (p *packetPacker) maybeGetCryptoPacket(maxPacketSize protocol.ByteCount, en
 	}
 
 	var pl payload
+	// DATAGRAM_PRIO_TAG
+	pl.priority = priority_setting.NoPriority
+
 	if ack != nil {
 		pl.ack = ack
 		pl.length = ack.Length(v)
@@ -699,6 +703,9 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 
 	var hasAck bool
 	var pl payload
+	// DATAGRAM_PRIO_TAG
+	pl.priority = priority_setting.NoPriority
+
 	if ackAllowed {
 		if ack := p.acks.GetAckFrame(protocol.Encryption1RTT, !hasRetransmission && !hasData); ack != nil {
 			pl.ack = ack
@@ -809,6 +816,9 @@ func (p *packetPacker) MaybePackProbePacket(encLevel protocol.EncryptionLevel, m
 
 	var hdr *wire.ExtendedHeader
 	var pl payload
+	// DATAGRAM_PRIO_TAG
+	pl.priority = priority_setting.NoPriority
+
 	var sealer handshake.LongHeaderSealer
 	//nolint:exhaustive // Probe packets are never sent for 0-RTT.
 	switch encLevel {

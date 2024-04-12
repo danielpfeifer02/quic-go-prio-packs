@@ -8,6 +8,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	list "github.com/danielpfeifer02/quic-go-prio-packs/internal/utils/linkedlist"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
 type newConnID struct {
@@ -204,16 +205,16 @@ func (h *connIDManager) shouldUpdateConnID() bool {
 
 // PRIO_PACKS_TAG
 // To keep old functionality:
-// prio == -1 means user does not care about priority
-// prio == 0 means user wants to switch to low priority connection ID
-// prio == 1 means user wants to switch to high priority connection ID
+// prio == priority_setting.NoPriority means user does not care about priority
+// prio == priority_setting.LowPriority means user wants to switch to low priority connection ID
+// prio == priority_setting.HighPriority means user wants to switch to high priority connection ID
 func (h *connIDManager) Get(prio Priority) protocol.ConnectionID {
 	if h.shouldUpdateConnID() {
 		h.updateConnectionID()
 	}
 	// TODO: can this also be done before checking "shouldUpdateConnID"?
 	// (regarding edge case in the beginning with id == 0)
-	if prio != -1 {
+	if prio != priority_setting.NoPriority {
 		h.SwitchToPriorityID(prio)
 	}
 	return h.activeConnectionID

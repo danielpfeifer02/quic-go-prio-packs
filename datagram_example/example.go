@@ -30,12 +30,16 @@ const message = "foobar"
 
 const NUM_MESSAGES = 3
 
+var PRIO = priority_setting.HighPriority
+var PRIO_S = PRIO
+var PRIO_C = PRIO
+
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
 func main() {
 
 	os.Remove("tls.keylog")
-	crypto_turnoff.CRYPTO_TURNED_OFF = true
+	crypto_turnoff.CRYPTO_TURNED_OFF = false
 
 	go func() { log.Fatal(echoServer()) }()
 
@@ -69,7 +73,8 @@ func echoServer() error {
 			return err
 		}
 		fmt.Printf("	>>Server: Got '%s'\n", string(data))
-		err = conn.SendDatagramWithPriority([]byte(data), priority_setting.HighPriority)
+		err = conn.SendDatagramWithPriority([]byte(data), PRIO_S)
+		// err = conn.SendDatagram([]byte(data))
 		if err != nil {
 			return err
 		}
@@ -103,7 +108,8 @@ func clientMain() error {
 
 		fmt.Printf("	>>Client: Sending '%s%d'\n", message, i)
 
-		err := conn.SendDatagramWithPriority([]byte(message+fmt.Sprintf("%d", i)), priority_setting.HighPriority)
+		err := conn.SendDatagramWithPriority([]byte(message+fmt.Sprintf("%d", i)), PRIO_C)
+		// err := conn.SendDatagram([]byte(message + fmt.Sprintf("%d", i)))
 		if err != nil {
 			return err
 		}
