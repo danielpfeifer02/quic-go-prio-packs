@@ -40,16 +40,16 @@ type streamManager interface {
 	GetOrOpenSendStream(protocol.StreamID) (sendStreamI, error)
 	GetOrOpenReceiveStream(protocol.StreamID) (receiveStreamI, error)
 	// PRIO_PACKS_TAG
-	OpenStreamWithPriority(protocol.Priority) (Stream, error)
+	OpenStreamWithPriority(priority_setting.Priority) (Stream, error)
 	OpenStream() (Stream, error)
 	// PRIO_PACKS_TAG
-	OpenUniStreamWithPriority(protocol.Priority) (SendStream, error)
+	OpenUniStreamWithPriority(priority_setting.Priority) (SendStream, error)
 	OpenUniStream() (SendStream, error)
 	// PRIO_PACKS_TAG
-	OpenStreamSyncWithPriority(context.Context, protocol.Priority) (Stream, error)
+	OpenStreamSyncWithPriority(context.Context, priority_setting.Priority) (Stream, error)
 	OpenStreamSync(context.Context) (Stream, error)
 	// PRIO_PACKS_TAG
-	OpenUniStreamSyncWithPriority(context.Context, protocol.Priority) (SendStream, error)
+	OpenUniStreamSyncWithPriority(context.Context, priority_setting.Priority) (SendStream, error)
 	OpenUniStreamSync(context.Context) (SendStream, error)
 	AcceptStream(context.Context) (Stream, error)
 	AcceptUniStream(context.Context) (ReceiveStream, error)
@@ -2313,11 +2313,11 @@ func readPriorityFromStream(str PriorityReader) Priority {
 	if err != nil {
 		panic("Failed to read stream priority when accepting stream")
 	}
-	prio := protocol.Priority(meta[0])
+	prio := priority_setting.Priority(meta[0])
 	return prio
 }
 
-func writePriorityToStream(str PriorityWriter, prio protocol.Priority) {
+func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
 	meta := make([]byte, 1)
 	meta[0] = byte(prio)
 	_, err := str.Write(meta)
@@ -2347,7 +2347,7 @@ func (s *connection) AcceptUniStream(ctx context.Context) (ReceiveStream, error)
 
 // PRIO_PACKS_TAG
 // OpenStream including a user defined priority for potential packet prioritization
-func (s *connection) OpenStreamWithPriority(priority protocol.Priority) (Stream, error) {
+func (s *connection) OpenStreamWithPriority(priority priority_setting.Priority) (Stream, error) {
 	str, err := s.streamsMap.OpenStreamWithPriority(priority)
 	if err != nil {
 		return nil, err
@@ -2363,7 +2363,7 @@ func (s *connection) OpenStream() (Stream, error) {
 
 // PRIO_PACKS_TAG
 // OpenStream including a user defined priority for potential packet prioritization
-func (s *connection) OpenStreamSyncWithPriority(ctx context.Context, priority protocol.Priority) (Stream, error) {
+func (s *connection) OpenStreamSyncWithPriority(ctx context.Context, priority priority_setting.Priority) (Stream, error) {
 	str, err := s.streamsMap.OpenStreamSyncWithPriority(ctx, priority)
 	if err != nil {
 		return nil, err
@@ -2378,7 +2378,7 @@ func (s *connection) OpenStreamSync(ctx context.Context) (Stream, error) {
 
 // PRIO_PACKS_TAG
 // OpenStream including a user defined priority for potential packet prioritization
-func (s *connection) OpenUniStreamWithPriority(priority protocol.Priority) (SendStream, error) {
+func (s *connection) OpenUniStreamWithPriority(priority priority_setting.Priority) (SendStream, error) {
 	str, err := s.streamsMap.OpenUniStreamWithPriority(priority)
 	if err != nil {
 		return nil, err
@@ -2393,7 +2393,7 @@ func (s *connection) OpenUniStream() (SendStream, error) {
 
 // PRIO_PACKS_TAG
 // OpenStream including a user defined priority for potential packet prioritization
-func (s *connection) OpenUniStreamSyncWithPriority(ctx context.Context, priority protocol.Priority) (SendStream, error) {
+func (s *connection) OpenUniStreamSyncWithPriority(ctx context.Context, priority priority_setting.Priority) (SendStream, error) {
 	str, err := s.streamsMap.OpenUniStreamSyncWithPriority(ctx, priority)
 	if err != nil {
 		return nil, err
@@ -2487,7 +2487,7 @@ func (s *connection) SendDatagram(p []byte) error {
 }
 
 // DATAGRAM_PRIO_TAG
-func (s *connection) SendDatagramWithPriority(p []byte, prio protocol.Priority) error {
+func (s *connection) SendDatagramWithPriority(p []byte, prio priority_setting.Priority) error {
 	if !s.supportsDatagrams() {
 		return errors.New("datagram support disabled")
 	}
