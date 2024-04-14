@@ -151,7 +151,9 @@ func (h *connIDManager) updateConnectionID() {
 		h.removeStatelessResetToken(*h.activeStatelessResetToken)
 	}
 
-	front := h.queue.Remove(h.queue.Front())
+	qf := h.queue.Front()
+	// fmt.Printf("Removing conn ID with prio %d\n", qf.Value.ConnectionID.Bytes()[0])
+	front := h.queue.Remove(qf)
 	h.activeSequenceNumber = front.SequenceNumber
 	h.activeConnectionID = front.ConnectionID
 	h.activeStatelessResetToken = &front.StatelessResetToken
@@ -199,8 +201,19 @@ func (h *connIDManager) shouldUpdateConnID() bool {
 	// For later changes, only change if
 	// 1. The queue of connection IDs is filled more than 50%.
 	// 2. We sent at least PacketsPerConnectionID packets
+	// 3. The current connection ID is not the only one with the priority of the current connection ID
+	currentPriority := Priority(h.activeConnectionID.Bytes()[0])
+	onlyIDOfPriority := true
+	for el := h.queue.Front(); el != nil; el = el.Next() {
+		if el.Value.ConnectionID.Bytes()[0] == byte(currentPriority) {
+			onlyIDOfPriority = false
+			break
+		}
+	}
+	// fmt.Printf("Trying to remove priority %d, onlyIDOfPriority: %t\n", currentPriority, onlyIDOfPriority)
 	return 2*h.queue.Len() >= protocol.MaxActiveConnectionIDs &&
-		h.packetsSinceLastChange >= h.packetsPerConnectionID
+		h.packetsSinceLastChange >= h.packetsPerConnectionID &&
+		!onlyIDOfPriority
 }
 
 // PRIO_PACKS_TAG
@@ -239,16 +252,17 @@ func (h *connIDManager) SwitchToPriorityID(prio Priority) {
 
 		// get the next potential state
 		potential := h.queue.Front().Value
+		h.queue.Remove(h.queue.Front())
+
+		h.queue.PushBack(newConnID{
+			SequenceNumber:      oldSeq,
+			ConnectionID:        oldConnID,
+			StatelessResetToken: oldResetToken,
+		})
 
 		// if the priority matches, switch to that state
 		// otherwise push current one back again and try the next one
 		if potential.ConnectionID.Bytes()[0] == byte(prio) {
-			h.queue.Remove(h.queue.Front())
-			h.queue.PushBack(newConnID{
-				SequenceNumber:      oldSeq,
-				ConnectionID:        oldConnID,
-				StatelessResetToken: oldResetToken,
-			})
 			h.activeConnectionID = potential.ConnectionID
 			h.activeSequenceNumber = potential.SequenceNumber
 			h.activeStatelessResetToken = &potential.StatelessResetToken
@@ -256,4 +270,6 @@ func (h *connIDManager) SwitchToPriorityID(prio Priority) {
 			return
 		}
 	}
+
+	fmt.Println("No connection ID with the requested priority found. (%d)", prio)
 }

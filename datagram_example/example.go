@@ -13,7 +13,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"log"
 	"math/big"
 	"os"
 	"time"
@@ -24,28 +23,44 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/qlog"
 )
 
-const addr = "localhost:4242"
+const server_addr = "192.168.11.2:4242"
 
 const message = "foobar"
 
 const NUM_MESSAGES = 3
 
-var PRIO = priority_setting.HighPriority
-var PRIO_S = PRIO
-var PRIO_C = PRIO
+var PRIO = priority_setting.NoPriority
+var PRIO_S = priority_setting.HighPriority
+var PRIO_C = priority_setting.LowPriority
 
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
 func main() {
 
+	// expect one argument: "server" or "client"
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: go run example.go server|client")
+		return
+	}
+
+	is_server := os.Args[1] == "server"
+	is_client := os.Args[1] == "client"
+
 	os.Remove("tls.keylog")
-	crypto_turnoff.CRYPTO_TURNED_OFF = false
+	crypto_turnoff.CRYPTO_TURNED_OFF = true
 
-	go func() { log.Fatal(echoServer()) }()
-
-	err := clientMain()
-	if err != nil {
-		panic(err)
+	if is_server {
+		err := echoServer()
+		if err != nil {
+			panic(err)
+		}
+	} else if is_client {
+		err := clientMain()
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		fmt.Println("Usage: go run example.go server|client")
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -54,7 +69,7 @@ func main() {
 // Start a server that echos all data on the first stream opened by the client
 func echoServer() error {
 
-	listener, err := quic.ListenAddr(addr, generateTLSConfig(), generateQUICConfig())
+	listener, err := quic.ListenAddr(server_addr, generateTLSConfig(), generateQUICConfig())
 	if err != nil {
 		panic(err)
 	}
@@ -91,7 +106,7 @@ func clientMain() error {
 		InsecureSkipVerify: true,
 		NextProtos:         []string{"quic-echo-example"},
 	}
-	conn, err := quic.DialAddr(context.Background(), addr, tlsConf, generateQUICConfig())
+	conn, err := quic.DialAddr(context.Background(), server_addr, tlsConf, generateQUICConfig())
 	if err != nil {
 		return err
 	}

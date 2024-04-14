@@ -13,27 +13,47 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
-	"log"
 	"math/big"
 	"os"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs"
+	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
-const addr = "localhost:4242"
+const addr = "192.168.11.2:4242"
 
 const message = "foobar"
 
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
 func main() {
-	go func() { log.Fatal(echoServer()) }()
 
-	err := clientMain()
-	if err != nil {
-		panic(err)
+	// check that there is an argument
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: go run example.go server|client")
+		return
+	}
+
+	crypto_turnoff.CRYPTO_TURNED_OFF = true
+
+	// check if the argument is "server" or "client"
+	is_server := os.Args[1] == "server"
+	is_client := os.Args[1] == "client"
+
+	if is_server {
+		err := echoServer()
+		if err != nil {
+			panic(err)
+		}
+	} else if is_client {
+		err := clientMain()
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		fmt.Println("Usage: go run example.go server|client")
+		return
 	}
 }
 
@@ -52,44 +72,63 @@ func echoServer() error {
 		return err
 	}
 
-	// // Accept the first stream opened by the client
-	// stream, err := conn.AcceptStream(context.Background())
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer stream.Close()
+	go func() {
+		for {
+			buf, err := conn.ReceiveDatagram(context.Background())
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("	>>Server: Got '%s'\n", string(buf))
+			err = conn.SendDatagram(buf)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("	>>Server: Echoing via datagram")
+		}
+	}()
 
-	// // TODO: AcceptStream seems to not return the stream with the same priority?
-	// // fmt.Printf("Prio stream one (serverside): %d\n", stream.Priority())
+	// Accept the first stream opened by the client
+	stream_high_prio, err := conn.AcceptStream(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	defer stream_high_prio.Close()
 
-	// // Handle the first stream opened by the client
-	// // in a separate goroutine
-	// go func(stream quic.Stream) {
-	// 	// Echo through the loggingWriter
-	// 	_, err = io.Copy(loggingWriter{stream}, stream)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }(stream)
+	// Handle the first stream opened by the client
+	// in a separate goroutine
+	go ListenAndRepeat(stream_high_prio)
 
 	// Accept the second stream opened by the client
-	stream2, err2 := conn.AcceptStream(context.Background())
+	stream_low_prio, err2 := conn.AcceptStream(context.Background())
 	if err2 != nil {
 		panic(err2)
 	}
-	defer stream2.Close()
-
-	// fmt.Printf("Prio stream two (serverside): %d\n", stream2.Priority())
+	defer stream_low_prio.Close()
 
 	// Handle the second stream opened by the client
 	// in the current goroutine
 	// Echo through the loggingWriter
-	_, err = io.Copy(loggingWriter{stream2}, stream2)
-	if err != nil {
-		panic(err)
-	}
+	ListenAndRepeat(stream_low_prio)
 
 	return nil
+}
+
+func ListenAndRepeat(stream quic.Stream) {
+	fmt.Println("Echo up and running")
+	for {
+		// Read and echo the message
+		buf := make([]byte, 1024)
+		n, err := stream.Read(buf)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(buf[:n]))
+		_, err = stream.Write(buf)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 }
 
 func clientMain() error {
@@ -109,61 +148,86 @@ func clientMain() error {
 		return err
 	}
 	defer stream_high_prio.Close()
-	// fmt.Printf("Prio of stream one (clientside): %d\n", stream_high_prio.Priority())
+	fmt.Printf("Prio of stream one (clientside): %d\n", stream_high_prio.Priority())
 
 	// Open a new stream with low priority
-	// stream_low_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), quic.LowPriority)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer stream_low_prio.Close()
-	// fmt.Printf("Prio of stream two (clientside): %d\n", stream_low_prio.Priority())
+	stream_low_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), priority_setting.LowPriority)
+	if err != nil {
+		return err
+	}
+	defer stream_low_prio.Close()
+	fmt.Printf("Prio of stream two (clientside): %d\n", stream_low_prio.Priority())
 
-	// Send three messages with high priority
-	for i := 0; i < 3; i++ {
+	for {
 
-		fmt.Printf("	>>Client: Sending with high prio '%s%d'\n", message, i)
-		_, err = stream_high_prio.Write([]byte(message + fmt.Sprintf("%d", i)))
-		if err != nil {
-			return err
+		// Print info field for the user
+		fmt.Println("What would you like to do?")
+		fmt.Println("1: Send a message with high priority over stream")
+		fmt.Println("2: Send a message with low priority over stream")
+		fmt.Println("3: Send a message with high priority via datagrams")
+		fmt.Println("4: Send a message with low priority via datagrans")
+		fmt.Println("5: Quit")
+
+		// Read the user's choice
+		var choice int
+		fmt.Scan(&choice)
+		// clear screen on terminal
+		fmt.Print("\033[H\033[2J")
+
+		var stream quic.Stream
+		var is_stream bool = false
+		var datagram_prio priority_setting.Priority
+
+		// Check the user's choice
+		switch choice {
+		case 1:
+			stream = stream_high_prio
+			is_stream = true
+		case 2:
+			stream = stream_low_prio
+			is_stream = true
+		case 3:
+			datagram_prio = priority_setting.HighPriority
+		case 4:
+			datagram_prio = priority_setting.LowPriority
+		case 5:
+			return nil
+		default:
+			fmt.Println("Invalid choice")
+			continue
 		}
 
-		buf_high := make([]byte, len(message)+1)
-		_, err = io.ReadFull(stream_high_prio, buf_high)
-		if err != nil {
-			return err
+		fmt.Printf("	>>Client: Sending '%s'\n", message)
+
+		var buf []byte
+		var n int
+		if is_stream {
+			_, err := stream.Write([]byte(message))
+			if err != nil {
+				return err
+			}
+
+			buf = make([]byte, 1024)
+			n, err = stream.Read(buf)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := conn.SendDatagramWithPriority([]byte(message), datagram_prio)
+			if err != nil {
+				return err
+			}
+
+			buf, err = conn.ReceiveDatagram(context.Background())
+			if err != nil {
+				return err
+			}
+			n = len(buf)
 		}
-		fmt.Printf("	>>Client: Got with high prio '%s'\n\n", buf_high)
+
+		fmt.Printf("	>>Client: Got '%s'\n\n", buf[:n])
 
 	}
-
-	// // Send three messages with low priority
-	// for i := 0; i < 3; i++ {
-
-	// 	fmt.Printf("	>>Client: Sending with low prio '%s%d'\n", message, i+3)
-	// 	_, err = stream_low_prio.Write([]byte(message + fmt.Sprintf("%d", i+3)))
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	buf_low := make([]byte, len(message)+1)
-	// 	_, err = io.ReadFull(stream_low_prio, buf_low)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	fmt.Printf("	>>Client: Got with low prio '%s'\n\n", buf_low)
-
-	// }
-
-	return nil
-}
-
-// A wrapper for io.Writer that also logs the message.
-type loggingWriter struct{ io.Writer }
-
-func (w loggingWriter) Write(b []byte) (int, error) {
-	fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(b))
-	return w.Writer.Write(b)
 }
 
 // Setup a bare-bones TLS config for the server
@@ -201,5 +265,7 @@ func generateTLSConfig() *tls.Config {
 }
 
 func generateQUICConfig() *quic.Config {
-	return &quic.Config{}
+	return &quic.Config{
+		EnableDatagrams: true,
+	}
 }
