@@ -72,6 +72,21 @@ func echoServer() error {
 		return err
 	}
 
+	go func() {
+		for {
+			buf, err := conn.ReceiveDatagram(context.Background())
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("	>>Server: Got '%s'\n", string(buf))
+			err = conn.SendDatagram(buf)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("	>>Server: Echoing via datagram")
+		}
+	}()
+
 	// Accept the first stream opened by the client
 	stream_high_prio, err := conn.AcceptStream(context.Background())
 	if err != nil {
@@ -147,23 +162,35 @@ func clientMain() error {
 
 		// Print info field for the user
 		fmt.Println("What would you like to do?")
-		fmt.Println("1: Send a message with high priority")
-		fmt.Println("2: Send a message with low priority")
-		fmt.Println("3: Quit")
+		fmt.Println("1: Send a message with high priority over stream")
+		fmt.Println("2: Send a message with low priority over stream")
+		fmt.Println("3: Send a message with high priority via datagrams")
+		fmt.Println("4: Send a message with low priority via datagrans")
+		fmt.Println("5: Quit")
 
 		// Read the user's choice
 		var choice int
 		fmt.Scan(&choice)
+		// clear screen on terminal
+		fmt.Print("\033[H\033[2J")
 
 		var stream quic.Stream
+		var is_stream bool = false
+		var datagram_prio priority_setting.Priority
 
 		// Check the user's choice
 		switch choice {
 		case 1:
 			stream = stream_high_prio
+			is_stream = true
 		case 2:
 			stream = stream_low_prio
+			is_stream = true
 		case 3:
+			datagram_prio = priority_setting.HighPriority
+		case 4:
+			datagram_prio = priority_setting.LowPriority
+		case 5:
 			return nil
 		default:
 			fmt.Println("Invalid choice")
@@ -171,16 +198,33 @@ func clientMain() error {
 		}
 
 		fmt.Printf("	>>Client: Sending '%s'\n", message)
-		_, err := stream.Write([]byte(message))
-		if err != nil {
-			return err
+
+		var buf []byte
+		var n int
+		if is_stream {
+			_, err := stream.Write([]byte(message))
+			if err != nil {
+				return err
+			}
+
+			buf = make([]byte, 1024)
+			n, err = stream.Read(buf)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := conn.SendDatagramWithPriority([]byte(message), datagram_prio)
+			if err != nil {
+				return err
+			}
+
+			buf, err = conn.ReceiveDatagram(context.Background())
+			if err != nil {
+				return err
+			}
+			n = len(buf)
 		}
 
-		buf := make([]byte, 1024)
-		n, err := stream.Read(buf)
-		if err != nil {
-			return err
-		}
 		fmt.Printf("	>>Client: Got '%s'\n\n", buf[:n])
 
 	}
@@ -221,5 +265,7 @@ func generateTLSConfig() *tls.Config {
 }
 
 func generateQUICConfig() *quic.Config {
-	return &quic.Config{}
+	return &quic.Config{
+		EnableDatagrams: true,
+	}
 }
