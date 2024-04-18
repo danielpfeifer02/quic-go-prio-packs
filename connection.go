@@ -2306,6 +2306,7 @@ type PriorityWriter interface {
 
 // PRIO_PACKS_TAG
 func readPriorityFromStream(str PriorityReader) Priority {
+	fmt.Println("Internally reading priority (1 byte)")
 	// Assumption is that first byte always sends the priority
 	// This happens only internally and is not exposed to the user
 	meta := make([]byte, 1)
@@ -2318,6 +2319,7 @@ func readPriorityFromStream(str PriorityReader) Priority {
 }
 
 func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
+	fmt.Println("Internally writing priority (1 byte)")
 	meta := make([]byte, 1)
 	meta[0] = byte(prio)
 	_, err := str.Write(meta)
@@ -2358,7 +2360,7 @@ func (s *connection) OpenStreamWithPriority(priority priority_setting.Priority) 
 
 // OpenStream opens a stream
 func (s *connection) OpenStream() (Stream, error) {
-	return s.streamsMap.OpenStreamWithPriority(priority_setting.NoPriority)
+	return s.OpenStreamWithPriority(priority_setting.NoPriority)
 }
 
 // PRIO_PACKS_TAG
@@ -2373,7 +2375,7 @@ func (s *connection) OpenStreamSyncWithPriority(ctx context.Context, priority pr
 }
 
 func (s *connection) OpenStreamSync(ctx context.Context) (Stream, error) {
-	return s.streamsMap.OpenStreamSyncWithPriority(ctx, priority_setting.NoPriority)
+	return s.OpenStreamSyncWithPriority(ctx, priority_setting.NoPriority)
 }
 
 // PRIO_PACKS_TAG
@@ -2388,7 +2390,7 @@ func (s *connection) OpenUniStreamWithPriority(priority priority_setting.Priorit
 }
 
 func (s *connection) OpenUniStream() (SendStream, error) {
-	return s.streamsMap.OpenUniStreamWithPriority(priority_setting.NoPriority)
+	return s.OpenUniStreamWithPriority(priority_setting.NoPriority)
 }
 
 // PRIO_PACKS_TAG
@@ -2403,7 +2405,7 @@ func (s *connection) OpenUniStreamSyncWithPriority(ctx context.Context, priority
 }
 
 func (s *connection) OpenUniStreamSync(ctx context.Context) (SendStream, error) {
-	return s.streamsMap.OpenUniStreamSyncWithPriority(ctx, priority_setting.NoPriority)
+	return s.OpenUniStreamSyncWithPriority(ctx, priority_setting.NoPriority)
 }
 
 func (s *connection) newFlowController(id protocol.StreamID) flowcontrol.StreamFlowController {
