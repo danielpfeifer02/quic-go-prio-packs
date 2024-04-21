@@ -691,6 +691,7 @@ func (p *packetPacker) maybeGetAppDataPacket(maxPayloadSize protocol.ByteCount, 
 }
 
 func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAck, ackAllowed bool, v protocol.Version) payload {
+
 	if onlyAck {
 		if ack := p.acks.GetAckFrame(protocol.Encryption1RTT, true); ack != nil {
 			return payload{ack: ack, length: ack.Length(v)}
@@ -711,6 +712,9 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			pl.ack = ack
 			pl.length += ack.Length(v)
 			hasAck = true
+
+			// STREAM_ONLY_TAG // TODO: make sure streams are always sent in a separate packet
+			return pl
 		}
 	}
 
@@ -725,6 +729,10 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 				pl.priority = max(pl.priority, f.Priority)
 
 				p.datagramQueue.Pop()
+
+				// STREAM_ONLY_TAG
+				return pl
+
 			} else if !hasAck {
 				// The DATAGRAM frame doesn't fit, and the packet doesn't contain an ACK.
 				// Discard this frame. There's no point in retrying this in the next packet,
@@ -751,12 +759,19 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			}
 			pl.frames = append(pl.frames, ackhandler.Frame{Frame: f, Handler: p.retransmissionQueue.AppDataAckHandler()})
 			pl.length += f.Length(v)
+
+			// STREAM_ONLY_TAG
+			// TODO: what exactly is sent here? Any need to leave this function early to
+			// TODO: ensure that streams are always sent in a separate packet?
 		}
 	}
 
 	if hasData {
 		var lengthAdded protocol.ByteCount
 		startLen := len(pl.frames)
+
+		// STREAM_ONLY_TAG
+		// TODO: are control frames together with stream frames a problem? probably yes...
 		pl.frames, lengthAdded = p.framer.AppendControlFrames(pl.frames, maxFrameSize-pl.length, v)
 		pl.length += lengthAdded
 		// add handlers for the control frames that were added
@@ -770,6 +785,8 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			}
 		}
 
+		// STREAM_ONLY_TAG
+		// TODO: can there be more than one stream frame in a packet?
 		pl.streamFrames, lengthAdded = p.framer.AppendStreamFrames(pl.streamFrames, maxFrameSize-pl.length, v)
 		pl.length += lengthAdded
 	}
