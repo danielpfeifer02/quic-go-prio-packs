@@ -1553,6 +1553,9 @@ func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.Encr
 
 	// BPF_MAP_TAG
 	frame.UpdateAckRanges(s)
+	if len(frame.AckRanges) == 0 {
+		return nil
+	}
 
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {

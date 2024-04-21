@@ -316,6 +316,7 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 	pnSpace := h.getPacketNumberSpace(encLevel)
 
 	largestAcked := ack.LargestAcked()
+	// TODONOW
 	if largestAcked > pnSpace.largestSent {
 		return false, &qerr.TransportError{
 			ErrorCode: qerr.ProtocolViolation,
@@ -439,6 +440,7 @@ func (h *sentPacketHandler) detectAndRemoveAckedPackets(ack *wire.AckFrame, encL
 				return false, fmt.Errorf("BUG: ackhandler would have acked wrong packet %d, while evaluating range %d -> %d", p.PacketNumber, ackRange.Smallest, ackRange.Largest)
 			}
 		}
+		// TODONOW
 		if p.skippedPacket {
 			return false, &qerr.TransportError{
 				ErrorCode: qerr.ProtocolViolation,

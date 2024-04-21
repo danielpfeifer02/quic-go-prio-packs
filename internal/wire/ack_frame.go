@@ -3,7 +3,6 @@ package wire
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -269,39 +268,60 @@ func encodeAckDelay(delay time.Duration) uint64 {
 }
 
 // BPF_MAP_TAG
-func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) {
+func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODONOW: fix this
 
+	// This rules out that the Acks are changed at server or client side
+	// in the example
 	if packet_setting.AckTranslationBPFHandler == nil {
 		return
 	}
-
-	lowest, err := packet_setting.AckTranslationBPFHandler(int64(f.LowestAcked()), conn)
-	if err != nil {
-		fmt.Println("Error in AckTranslationBPFHandler: ", err)
-		return
-	}
-	largest, err := packet_setting.AckTranslationBPFHandler(int64(f.LargestAcked()), conn)
-	if err != nil {
-		fmt.Println("Error in AckTranslationBPFHandler: ", err)
+	if conn.RemoteAddr().String() == packet_setting.SERVER_ADDR {
 		return
 	}
 
-	// TODO: this seems like there is bound to be a bug here somewhere but for now
-	// TODO: i'll just see where it goes
+	removable_indices := make([]int, 0)
 
-	f.AckRanges[len(f.AckRanges)-1].Smallest = protocol.PacketNumber(lowest)
-	secondLowest, _ := packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[len(f.AckRanges)-1].Largest), conn)
-	f.AckRanges[len(f.AckRanges)-1].Largest = protocol.PacketNumber(secondLowest)
+	// fmt.Println()
 
-	f.AckRanges[0].Largest = protocol.PacketNumber(largest)
-	secondLargest, _ := packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[0].Smallest), conn)
-	f.AckRanges[0].Smallest = protocol.PacketNumber(secondLargest)
+	for i := 0; i < len(f.AckRanges); i++ {
 
-	for i := 1; i < len(f.AckRanges)-1; i++ {
-		largest, _ = packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[i].Largest), conn)
-		lowest, _ = packet_setting.AckTranslationBPFHandler(int64(f.AckRanges[i].Smallest), conn)
-		f.AckRanges[i].Largest = protocol.PacketNumber(largest)
-		f.AckRanges[i].Smallest = protocol.PacketNumber(lowest)
+		// fmt.Println("Range ", i, " Smallest: ", f.AckRanges[i].Smallest, " Largest: ", f.AckRanges[i].Largest)
+
+		smallest := f.AckRanges[i].Smallest
+		largest := f.AckRanges[i].Largest
+
+		var new_smallest, new_largest int64
+		var err error
+		for j := 0; j < (int(largest) - int(smallest) + 1); j++ {
+			// fmt.Println("Trying to translate: ", smallest) // TODO: output seems wrong
+			new_smallest, err = packet_setting.AckTranslationBPFHandler(int64(smallest), conn)
+			if err == nil {
+				break
+			}
+			smallest++
+		}
+		if err != nil {
+			// fmt.Println("Whole range empty")
+			removable_indices = append(removable_indices, i)
+			continue
+		}
+		f.AckRanges[i].Smallest = protocol.PacketNumber(new_smallest)
+
+		for j := 0; j < (int(largest) - int(smallest) + 1); j++ {
+			new_largest, err = packet_setting.AckTranslationBPFHandler(int64(largest), conn)
+			if err == nil {
+				break
+			}
+			largest--
+		}
+		if err == nil {
+			f.AckRanges[i].Largest = protocol.PacketNumber(new_largest)
+		}
+
+	}
+
+	for i := len(removable_indices) - 1; i >= 0; i-- {
+		f.AckRanges = append(f.AckRanges[:removable_indices[i]], f.AckRanges[removable_indices[i]+1:]...)
 	}
 
 }
