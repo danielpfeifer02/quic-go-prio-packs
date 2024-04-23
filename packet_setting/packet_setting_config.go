@@ -30,6 +30,11 @@ type QuicConnection interface {
 	Unlock()
 }
 
+type Range struct {
+	Smallest int64
+	Largest  int64
+}
+
 var (
 	ALLOW_SETTING_PN                bool                                          = false
 	OMIT_CONN_ID_RETIREMENT         bool                                          = false
@@ -41,8 +46,11 @@ var (
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
 
 	// Important note: this function should return "pn, err" in case of an error
-	AckTranslationBPFHandler func(pn int64, conn QuicConnection) (int64, error) = nil
+	AckTranslationBPFHandler         func(pn int64, conn QuicConnection) (int64, error) = nil
+	AckTranslationDeletionBPFHandler func(pn int64, conn QuicConnection)                = nil
 	// CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil // TODO: remove
 
 	SERVER_ADDR string = "192.168.10.1:4242"
+
+	RangeTranslationMap map[Range]Range = make(map[Range]Range)
 )

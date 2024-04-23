@@ -745,12 +745,13 @@ func (h *sentPacketHandler) OnLossDetectionTimeout() error {
 		h.ptoMode = SendPTOHandshake
 	case protocol.Encryption1RTT:
 		// skip a packet number in order to elicit an immediate ACK
-		pn := h.PopPacketNumber(protocol.Encryption1RTT)
 
+		// TODONOW
 		// PACKET_NUMBER_TAG
-		// TODO: do I need to add function to handle BPF pn update on skip?
+		// TODONOW: do I need to add function to handle BPF pn update on skip?
+		// pn := h.PopPacketNumber(protocol.Encryption1RTT)
+		// h.getPacketNumberSpace(protocol.Encryption1RTT).history.SkippedPacket(pn)
 
-		h.getPacketNumberSpace(protocol.Encryption1RTT).history.SkippedPacket(pn)
 		h.ptoMode = SendPTOAppData
 	default:
 		return fmt.Errorf("PTO timer in unexpected encryption level: %s", encLevel)
@@ -782,7 +783,9 @@ func (h *sentPacketHandler) PeekPacketNumber(encLevel protocol.EncryptionLevel) 
 func (h *sentPacketHandler) PopPacketNumber(encLevel protocol.EncryptionLevel) protocol.PacketNumber {
 	pnSpace := h.getPacketNumberSpace(encLevel)
 	skipped, pn := pnSpace.pns.Pop()
-	if skipped {
+
+	// TODONOW: allow skipping pns
+	if skipped && !packet_setting.ALLOW_SETTING_PN {
 		skippedPN := pn - 1
 		pnSpace.history.SkippedPacket(skippedPN)
 		if h.logger.Debug() {
