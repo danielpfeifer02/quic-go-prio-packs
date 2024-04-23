@@ -286,7 +286,7 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 
 	for i := 0; i < len(f.AckRanges); i++ { // TODONOW: AckRanges are only the ranges of ACKed pns without the gaps right?
 
-		fmt.Println("Range ", i, " Smallest: ", f.AckRanges[i].Smallest, " Largest: ", f.AckRanges[i].Largest)
+		// fmt.Println("Range ", i, " Smallest: ", f.AckRanges[i].Smallest, " Largest: ", f.AckRanges[i].Largest)
 
 		smallest := f.AckRanges[i].Smallest
 		largest := f.AckRanges[i].Largest
@@ -351,7 +351,6 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 				smallest := f.AckRanges[i].Smallest
 				largest := f.AckRanges[i].Largest
 				for j := smallest; j < largest+1; j++ {
-					fmt.Println("Deleting: ", j)
 					packet_setting.AckTranslationDeletionBPFHandler(int64(j), conn)
 				}
 			}

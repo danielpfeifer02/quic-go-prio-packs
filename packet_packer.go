@@ -714,6 +714,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			hasAck = true
 
 			// STREAM_ONLY_TAG // TODO: make sure streams are always sent in a separate packet
+			// fmt.Println("ACK frame added to packet", ack.LargestAcked(), ack.LowestAcked())
 			return pl
 		}
 	}
