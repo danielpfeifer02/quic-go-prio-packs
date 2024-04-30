@@ -2307,28 +2307,36 @@ type PriorityWriter interface {
 	Write([]byte) (int, error)
 }
 
+// TODONOW
 // PRIO_PACKS_TAG
 func readPriorityFromStream(str PriorityReader) Priority {
-	fmt.Println("Internally reading priority (1 byte)")
-	// Assumption is that first byte always sends the priority
-	// This happens only internally and is not exposed to the user
-	meta := make([]byte, 1)
-	_, err := str.Read(meta)
-	if err != nil {
-		panic("Failed to read stream priority when accepting stream")
-	}
-	prio := priority_setting.Priority(meta[0])
-	return prio
+	/*
+		fmt.Println("Internally reading priority (1 byte)")
+		// Assumption is that first byte always sends the priority
+		// This happens only internally and is not exposed to the user
+		meta := make([]byte, 1)
+		_, err := str.Read(meta)
+		if err != nil {
+			panic("Failed to read stream priority when accepting stream")
+		}
+		prio := priority_setting.Priority(meta[0])
+		return prio
+	*/
+	fmt.Println("TODO: turn on priority exchange")
+	return priority_setting.NoPriority
 }
 
+// TODONOW
 func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
-	fmt.Println("Internally writing priority (1 byte)")
-	meta := make([]byte, 1)
-	meta[0] = byte(prio)
-	_, err := str.Write(meta)
-	if err != nil {
-		panic("Failed to write stream priority when opening stream")
-	}
+	/*
+		fmt.Println("Internally writing priority (1 byte)")
+		meta := make([]byte, 1)
+		meta[0] = byte(prio)
+		_, err := str.Write(meta)
+		if err != nil {
+			panic("Failed to write stream priority when opening stream")
+		}
+	*/
 }
 
 // AcceptStream returns the next stream openend by the peer

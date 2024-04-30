@@ -2,6 +2,7 @@ package packet_setting
 
 import (
 	"net"
+	"sync"
 )
 
 // TODO: how to make this prettier?
@@ -52,5 +53,7 @@ var (
 
 	SERVER_ADDR string = "192.168.10.1:4242"
 
-	RangeTranslationMap map[Range]Range = make(map[Range]Range)
+	RangeTranslationMap             map[Range]Range = make(map[Range]Range)
+	IndividualAckTranslationMap     map[int64]int64 = make(map[int64]int64)
+	IndividualAckTranslationMapLock sync.Mutex      = sync.Mutex{}
 )

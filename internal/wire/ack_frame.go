@@ -281,15 +281,18 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 	}
 
 	removable_indices := make([]int, 0)
+	boundaries_buffer := make([]packet_setting.Range, 0)
 
 	// fmt.Println()
 
 	for i := 0; i < len(f.AckRanges); i++ { // TODONOW: AckRanges are only the ranges of ACKed pns without the gaps right?
 
-		// fmt.Println("Range ", i, " Smallest: ", f.AckRanges[i].Smallest, " Largest: ", f.AckRanges[i].Largest)
-
 		smallest := f.AckRanges[i].Smallest
 		largest := f.AckRanges[i].Largest
+
+		var smallest_translated, largest_translated int64
+
+		fmt.Println("Debug: ", smallest, largest)
 
 		// check range translation map
 		// if translated range is in the map, use it
@@ -303,13 +306,25 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 			}
 		}
 
-		var new_smallest, new_largest int64
+		var new_smallest = int64(-1)
+		var new_largest = int64(-1)
 		var err error
 		for j := smallest; j <= largest; j++ {
-			// fmt.Println("Trying to translate: ", smallest) // TODO: output seems wrong
 			new_smallest, err = packet_setting.AckTranslationBPFHandler(int64(j), conn)
 			if err == nil {
+				smallest_translated = int64(j)
 				break
+			}
+
+			if packet_setting.IndividualAckTranslationMap != nil {
+				packet_setting.IndividualAckTranslationMapLock.Lock()
+				translated_pn, ok := packet_setting.IndividualAckTranslationMap[int64(j)]
+				packet_setting.IndividualAckTranslationMapLock.Unlock()
+				if ok {
+					new_smallest = translated_pn
+					smallest_translated = int64(j)
+					break
+				}
 			}
 		}
 		if err != nil {
@@ -319,21 +334,42 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 		}
 		f.AckRanges[i].Smallest = protocol.PacketNumber(new_smallest)
 
+		fmt.Println("Debug2: ", smallest, largest, new_smallest)
+
 		for j := largest; j >= smallest; j-- {
 			new_largest, err = packet_setting.AckTranslationBPFHandler(int64(j), conn)
 			if err == nil {
+				largest_translated = int64(j)
 				break
+			}
+
+			if packet_setting.IndividualAckTranslationMap != nil {
+				packet_setting.IndividualAckTranslationMapLock.Lock()
+				translated_pn, ok := packet_setting.IndividualAckTranslationMap[int64(j)]
+				packet_setting.IndividualAckTranslationMapLock.Unlock()
+				if ok {
+					new_largest = translated_pn
+					largest_translated = int64(j)
+					break
+				}
 			}
 		}
 		if err == nil {
 			f.AckRanges[i].Largest = protocol.PacketNumber(new_largest)
+		} else {
+			panic("This should not happen")
 		}
 
 		// update range translation map
-		if packet_setting.RangeTranslationMap != nil {
-			packet_setting.RangeTranslationMap[packet_setting.Range{Smallest: int64(smallest), Largest: int64(largest)}] =
-				packet_setting.Range{Smallest: new_smallest, Largest: new_largest}
+		if packet_setting.RangeTranslationMap == nil {
+			packet_setting.RangeTranslationMap = make(map[packet_setting.Range]packet_setting.Range)
 		}
+		packet_setting.RangeTranslationMap[packet_setting.Range{Smallest: int64(smallest), Largest: int64(largest)}] =
+			packet_setting.Range{Smallest: new_smallest, Largest: new_largest}
+
+		// fmt.Println("Translated range: ", smallest, largest, new_smallest, new_largest)
+		boundaries_buffer = append(boundaries_buffer,
+			packet_setting.Range{Smallest: smallest_translated, Largest: largest_translated})
 
 	}
 
@@ -341,20 +377,32 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 		f.AckRanges = append(f.AckRanges[:removable_indices[i]], f.AckRanges[removable_indices[i]+1:]...)
 	}
 
-	go func(f *AckFrame, conn packet_setting.QuicConnection) {
-		if packet_setting.AckTranslationDeletionBPFHandler != nil {
-			// It is fine here to use the already trimmed ranges
-			// since we never remove any pn that can be translated
-			// from the range but only ones that are not translatable
-			// i.e. sent from the bpf program
-			for i := 0; i < len(f.AckRanges); i++ {
-				smallest := f.AckRanges[i].Smallest
-				largest := f.AckRanges[i].Largest
-				for j := smallest; j < largest+1; j++ {
-					packet_setting.AckTranslationDeletionBPFHandler(int64(j), conn)
+	// TODO: this causes problems when run concurrently
+	// go func(f *AckFrame, conn packet_setting.QuicConnection) {
+	if packet_setting.AckTranslationDeletionBPFHandler != nil {
+		// It is fine here to use the already trimmed ranges
+		// since we never remove any pn that can be translated
+		// from the range but only ones that are not translatable
+		// i.e. sent from the bpf program
+		for i := 0; i < len(boundaries_buffer); i++ {
+			smallest := boundaries_buffer[i].Smallest
+			largest := boundaries_buffer[i].Largest
+			for j := smallest; j <= largest; j++ {
+
+				if packet_setting.IndividualAckTranslationMap != nil {
+					packet_setting.IndividualAckTranslationMapLock.Lock()
+					if trans, err := packet_setting.AckTranslationBPFHandler(int64(j), conn); err != nil {
+						if _, ok := packet_setting.IndividualAckTranslationMap[int64(j)]; !ok {
+							packet_setting.IndividualAckTranslationMap[int64(j)] = trans
+						}
+					}
+					packet_setting.IndividualAckTranslationMapLock.Unlock()
 				}
+
+				packet_setting.AckTranslationDeletionBPFHandler(int64(j), conn)
 			}
 		}
-	}(f, conn)
+	}
+	// }(f, conn)
 
 }
