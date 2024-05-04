@@ -1437,6 +1437,7 @@ func (s *connection) handleHandshakeEvents() error {
 }
 
 func (s *connection) handleStreamFrame(frame *wire.StreamFrame) error {
+	// fmt.Println(frame.StreamID)
 	str, err := s.streamsMap.GetOrOpenReceiveStream(frame.StreamID)
 	if err != nil {
 		return err
@@ -2310,33 +2311,35 @@ type PriorityWriter interface {
 // TODONOW
 // PRIO_PACKS_TAG
 func readPriorityFromStream(str PriorityReader) Priority {
-	/*
-		fmt.Println("Internally reading priority (1 byte)")
-		// Assumption is that first byte always sends the priority
-		// This happens only internally and is not exposed to the user
-		meta := make([]byte, 1)
-		_, err := str.Read(meta)
-		if err != nil {
-			panic("Failed to read stream priority when accepting stream")
-		}
-		prio := priority_setting.Priority(meta[0])
-		return prio
-	*/
-	fmt.Println("TODO: turn on priority exchange")
-	return priority_setting.NoPriority
+	if !packet_setting.EXCHANGE_PRIOS {
+		return priority_setting.NoPriority
+	}
+	// Assumption is that first byte always sends the priority
+	// This happens only internally and is not exposed to the user
+	meta := make([]byte, 1)
+	_, err := str.Read(meta)
+	if err != nil {
+		// panic("Failed to read stream priority when accepting stream")
+		fmt.Println("Failed to read stream priority when accepting stream")
+		return priority_setting.NoPriority
+	}
+	prio := priority_setting.Priority(meta[0])
+	fmt.Println("Internally read priority (1 byte)")
+	return prio
 }
 
 // TODONOW
 func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
-	/*
-		fmt.Println("Internally writing priority (1 byte)")
-		meta := make([]byte, 1)
-		meta[0] = byte(prio)
-		_, err := str.Write(meta)
-		if err != nil {
-			panic("Failed to write stream priority when opening stream")
-		}
-	*/
+	if !packet_setting.EXCHANGE_PRIOS {
+		return
+	}
+	meta := make([]byte, 1)
+	meta[0] = byte(prio)
+	_, err := str.Write(meta)
+	if err != nil {
+		panic("Failed to write stream priority when opening stream")
+	}
+	fmt.Println("Internally written priority (1 byte)")
 }
 
 // AcceptStream returns the next stream openend by the peer

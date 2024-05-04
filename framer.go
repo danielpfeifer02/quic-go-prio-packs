@@ -120,7 +120,11 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 	f.mutex.Lock()
 	// pop STREAM frames, until less than MinStreamFrameSize bytes are left in the packet
 	numActiveStreams := f.streamQueue.Len()
-	for i := 0; i < numActiveStreams; i++ {
+	// for i := 0; i < numActiveStreams; i++ {
+
+	// SINGLE_STREAM_TAG
+	sstr_limit := min(numActiveStreams, 1)
+	for i := 0; i < sstr_limit; i++ {
 		if protocol.MinStreamFrameSize+length > maxLen {
 			break
 		}

@@ -732,6 +732,8 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 				p.datagramQueue.Pop()
 
 				// STREAM_ONLY_TAG
+				// directly return so that the datagram is sent in a separate packet
+				// (also only one datagram will be sent per packet)
 				return pl
 
 			} else if !hasAck {
@@ -790,6 +792,12 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		// TODO: can there be more than one stream frame in a packet?
 		pl.streamFrames, lengthAdded = p.framer.AppendStreamFrames(pl.streamFrames, maxFrameSize-pl.length, v)
 		pl.length += lengthAdded
+
+		// STREAM_PER_PACKET_TAG
+		// TODO: remove
+		if len(pl.streamFrames) > 1 {
+			panic("more than one stream frame in a packet")
+		}
 	}
 	return pl
 }
@@ -997,6 +1005,7 @@ func (p *packetPacker) appendShortHeaderPacket(
 	isMTUProbePacket bool,
 	v protocol.Version,
 ) (shortHeaderPacket, error) {
+
 	var paddingLen protocol.ByteCount
 	if pl.length < 4-protocol.ByteCount(pnLen) {
 		paddingLen = 4 - protocol.ByteCount(pnLen) - pl.length
@@ -1015,6 +1024,7 @@ func (p *packetPacker) appendShortHeaderPacket(
 	if err != nil {
 		return shortHeaderPacket{}, err
 	}
+
 	if !isMTUProbePacket {
 		if size := protocol.ByteCount(len(raw) + sealer.Overhead()); size > maxPacketSize {
 			return shortHeaderPacket{}, fmt.Errorf("PacketPacker BUG: packet too large (%d bytes, allowed %d bytes)", size, maxPacketSize)
@@ -1033,6 +1043,19 @@ func (p *packetPacker) appendShortHeaderPacket(
 		// defined by the user who knows about the specific BPF setup
 		packet_setting.PacketNumberIncrementBPFHandler(int64(pn), p.connection)
 	}
+
+	// fmt.Printf("-------------------- %d %d \n", len(pl.streamFrames), len(pl.frames))
+	// // REMOVENOW
+	// // go through all streamFrames
+	// for i := range pl.streamFrames {
+	// 	f := &pl.streamFrames[i]
+	// 	b := f.Frame.Data
+	// 	bl := len(b)
+	// 	for j := 0; j < min(bl, 100); j++ {
+	// 		fmt.Printf("%02x ", b[j])
+	// 	}
+	// 	fmt.Printf("\n\n")
+	// }
 
 	return shortHeaderPacket{
 		PacketNumber:         pn,

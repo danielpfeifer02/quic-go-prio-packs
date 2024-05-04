@@ -29,7 +29,7 @@ const (
 
 // SupportedVersions lists the versions that the server supports
 // must be in sorted descending order
-var SupportedVersions = []Version{Version1, Version2}
+var SupportedVersions = []Version{Version1} //, Version2}
 
 // IsValidVersion says if the version is known to quic-go
 func IsValidVersion(v Version) bool {

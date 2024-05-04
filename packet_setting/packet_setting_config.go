@@ -51,7 +51,9 @@ var (
 	AckTranslationDeletionBPFHandler func(pn int64, conn QuicConnection)                = nil
 	// CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil // TODO: remove
 
-	SERVER_ADDR string = "192.168.10.1:4242"
+	SERVER_ADDR    string = "192.168.10.1:4242"
+	IS_CLIENT      bool   = false
+	EXCHANGE_PRIOS bool   = true
 
 	RangeTranslationMap             map[Range]Range = make(map[Range]Range)
 	IndividualAckTranslationMap     map[int64]int64 = make(map[int64]int64)
