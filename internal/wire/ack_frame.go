@@ -3,7 +3,6 @@ package wire
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -292,8 +291,6 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 
 		var smallest_translated, largest_translated int64
 
-		fmt.Println("Debug: ", smallest, largest)
-
 		// check range translation map
 		// if translated range is in the map, use it
 		// if translated range is not in the map, translate it
@@ -328,13 +325,11 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 			}
 		}
 		if err != nil {
-			fmt.Println("Whole range empty")
+			// fmt.Println("Whole range empty")
 			removable_indices = append(removable_indices, i)
 			continue
 		}
 		f.AckRanges[i].Smallest = protocol.PacketNumber(new_smallest)
-
-		fmt.Println("Debug2: ", smallest, largest, new_smallest)
 
 		for j := largest; j >= smallest; j-- {
 			new_largest, err = packet_setting.AckTranslationBPFHandler(int64(j), conn)

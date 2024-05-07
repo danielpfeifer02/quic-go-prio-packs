@@ -265,6 +265,18 @@ type Connection interface {
 
 	// BPF_MAP_TAG
 	GetDestConnID(Stream) ConnectionID
+
+	// RTT_STATS_TAG
+	GetRTTStats() RTTStatistics
+}
+
+// RTT_STATS_TAG
+type RTTStatistics struct {
+	MinRTT      time.Duration
+	LatestRTT   time.Duration
+	SmoothedRTT time.Duration
+	RTTVariance time.Duration
+	MaxAckDelay time.Duration
 }
 
 // An EarlyConnection is a connection that is handshaking.

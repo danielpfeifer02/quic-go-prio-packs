@@ -358,6 +358,19 @@ func (s *connection) GetDestConnID(stream Stream) protocol.ConnectionID {
 	return s.connIDManager.Get(s.GetPriority(stream.StreamID()))
 }
 
+// RTT_STATS_TAG
+func (s *connection) GetRTTStats() RTTStatistics {
+	stats := s.rttStats
+	statistics := RTTStatistics{
+		MinRTT:      stats.MinRTT(),
+		LatestRTT:   stats.LatestRTT(),
+		SmoothedRTT: stats.SmoothedRTT(),
+		RTTVariance: stats.MeanDeviation(),
+		MaxAckDelay: stats.MaxAckDelay(),
+	}
+	return statistics
+}
+
 // declare this as a variable, such that we can it mock it in the tests
 var newClientConnection = func(
 	conn sendConn,
