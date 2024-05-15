@@ -11,6 +11,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/handshake"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
@@ -268,6 +269,10 @@ type Connection interface {
 
 	// RTT_STATS_TAG
 	GetRTTStats() RTTStatistics
+
+	// BPF_CC_TAG
+	// RegisterBPFPacket registers a BPF packet that was sent by the BPF program.
+	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
 }
 
 // RTT_STATS_TAG

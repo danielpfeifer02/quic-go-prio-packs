@@ -2594,3 +2594,8 @@ func (s *connection) Lock() {
 func (s *connection) Unlock() {
 	s.mutex.Unlock()
 }
+
+// BPF_CC_TAG
+func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
+	s.sentPacketHandler.RegisterBPFPacket(prc)
+}

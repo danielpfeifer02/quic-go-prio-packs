@@ -36,6 +36,12 @@ type Range struct {
 	Largest  int64
 }
 
+// BPF_CC_TAG
+type PacketRegisterContainerBPF struct {
+	// The packet number of the packet
+	PacketNumber int64
+}
+
 var (
 	ALLOW_SETTING_PN                bool                                          = false
 	OMIT_CONN_ID_RETIREMENT         bool                                          = false

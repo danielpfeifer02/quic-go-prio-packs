@@ -62,6 +62,36 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 	}
 }
 
+// BPF_CC_TAG
+func (h *sentPacketHistory) SentBPFPacket(raw_pn int64) {
+	// TODONOW: what is needed here?
+	pn := protocol.PacketNumber(raw_pn)
+
+	// We do not check for sequential packet number use for BPF packets
+	// since those could be "registered" out of order. (TODONOW: i think?)
+
+	bpf_packet := &packet{
+		PacketNumber: pn,
+	}
+
+	// Insert the BPF packet at the correct position
+	// (i.e., the position of the first packet with a higher packet number)
+	for i, p := range h.packets {
+		if p == nil || p.PacketNumber > pn {
+			h.packets = append(h.packets[:i], append([]*packet{bpf_packet}, h.packets[i:]...)...)
+
+			h.numOutstanding++
+
+			if pn > h.highestPacketNumber {
+				h.highestPacketNumber = pn
+			}
+
+			return
+		}
+	}
+
+}
+
 // Iterate iterates through all packets.
 func (h *sentPacketHistory) Iterate(cb func(*packet) (cont bool, err error)) error {
 	for _, p := range h.packets {

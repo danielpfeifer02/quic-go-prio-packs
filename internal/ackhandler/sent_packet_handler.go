@@ -238,6 +238,11 @@ func (h *sentPacketHandler) packetsInFlight() int {
 	return packetsInFlight
 }
 
+// BPF_CC_TAG
+func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
+	fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber)
+}
+
 func (h *sentPacketHandler) SentPacket(
 	t time.Time,
 	pn, largestAcked protocol.PacketNumber,

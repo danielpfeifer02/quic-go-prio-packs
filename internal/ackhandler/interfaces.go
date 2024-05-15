@@ -5,6 +5,7 @@ import (
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 // SentPacketHandler handles ACKs received for outgoing packets
@@ -39,6 +40,9 @@ type SentPacketHandler interface {
 	// PACKET_NUMBER_TAG
 	SetPacketNumber(protocol.PacketNumber)
 	SetHighestSentPacketNumber(protocol.PacketNumber)
+
+	// BPF_CC_TAG
+	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
 }
 
 type sentPacketTracker interface {
