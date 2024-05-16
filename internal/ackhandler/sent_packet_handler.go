@@ -240,7 +240,8 @@ func (h *sentPacketHandler) packetsInFlight() int {
 
 // BPF_CC_TAG
 func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
-	fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber)
+	fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
+	h.appDataPackets.history.SentBPFPacket(prc)
 }
 
 func (h *sentPacketHandler) SentPacket(
@@ -876,6 +877,10 @@ func (h *sentPacketHandler) QueueProbePacket(encLevel protocol.EncryptionLevel) 
 
 func (h *sentPacketHandler) queueFramesForRetransmission(p *packet) {
 	if len(p.Frames) == 0 && len(p.StreamFrames) == 0 {
+		// BPF_CC_TAG
+		if packet_setting.BPF_PACKET_REGISTRATION {
+			return
+		}
 		panic("no frames")
 	}
 	for _, f := range p.Frames {

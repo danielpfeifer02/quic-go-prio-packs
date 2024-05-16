@@ -40,6 +40,8 @@ type Range struct {
 type PacketRegisterContainerBPF struct {
 	// The packet number of the packet
 	PacketNumber int64
+	SentTime     int64
+	Length       int64
 }
 
 var (
@@ -64,4 +66,7 @@ var (
 	RangeTranslationMap             map[Range]Range = make(map[Range]Range)
 	IndividualAckTranslationMap     map[int64]int64 = make(map[int64]int64)
 	IndividualAckTranslationMapLock sync.Mutex      = sync.Mutex{}
+
+	// BPF_CC_TAG
+	BPF_PACKET_REGISTRATION bool = false
 )

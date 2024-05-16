@@ -2,6 +2,7 @@ package ackhandler
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
@@ -25,7 +26,9 @@ func newSentPacketHistory() *sentPacketHistory {
 func (h *sentPacketHistory) checkSequentialPacketNumberUse(pn protocol.PacketNumber) {
 
 	// PACKET_NUMBER_TAG
-	if packet_setting.ALLOW_SETTING_PN {
+	// BPF_CC_TAG
+	if packet_setting.ALLOW_SETTING_PN ||
+		packet_setting.BPF_PACKET_REGISTRATION {
 		return
 	}
 
@@ -63,15 +66,23 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 }
 
 // BPF_CC_TAG
-func (h *sentPacketHistory) SentBPFPacket(raw_pn int64) {
+func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
 	// TODONOW: what is needed here?
-	pn := protocol.PacketNumber(raw_pn)
+	pn := protocol.PacketNumber(prc.PacketNumber)
+	tm := time.Unix(0, prc.SentTime)
+	le := protocol.ByteCount(prc.Length)
 
 	// We do not check for sequential packet number use for BPF packets
 	// since those could be "registered" out of order. (TODONOW: i think?)
 
-	bpf_packet := &packet{
-		PacketNumber: pn,
+	bpf_packet := &packet{ // TODO: what fields should be set here?
+		SendTime:        tm,
+		PacketNumber:    pn,
+		StreamFrames:    nil,
+		Frames:          nil,
+		LargestAcked:    protocol.InvalidPacketNumber,
+		Length:          le,
+		EncryptionLevel: protocol.Encryption0RTT,
 	}
 
 	// Insert the BPF packet at the correct position
