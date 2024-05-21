@@ -303,6 +303,10 @@ var newConnection = func(
 		s.tracer,
 		s.logger,
 	)
+
+	// BPF_CC_TAG
+	s.sentPacketHandler.SetPeerIsSendServer(conn.RemoteAddr().String() == packet_setting.SERVER_ADDR)
+
 	s.mtuDiscoverer = newMTUDiscoverer(s.rttStats, getMaxPacketSize(s.conn.RemoteAddr()), s.sentPacketHandler.SetMaxDatagramSize)
 	params := &wire.TransportParameters{
 		InitialMaxStreamDataBidiLocal:   protocol.ByteCount(s.config.InitialStreamReceiveWindow),
@@ -430,6 +434,10 @@ var newClientConnection = func(
 		s.tracer,
 		s.logger,
 	)
+
+	// BPF_CC_TAG
+	s.sentPacketHandler.SetPeerIsSendServer(conn.RemoteAddr().String() == packet_setting.SERVER_ADDR)
+
 	s.mtuDiscoverer = newMTUDiscoverer(s.rttStats, getMaxPacketSize(s.conn.RemoteAddr()), s.sentPacketHandler.SetMaxDatagramSize)
 	oneRTTStream := newCryptoStream()
 	params := &wire.TransportParameters{
@@ -1566,10 +1574,13 @@ func (s *connection) handleHandshakeDoneFrame() error {
 func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.EncryptionLevel) error {
 
 	// BPF_MAP_TAG
-	frame.UpdateAckRanges(s)
-	if len(frame.AckRanges) == 0 {
-		return nil
-	}
+	// BPF_CC_TAG
+	// frame.UpdateAckRanges(s)
+	// if len(frame.AckRanges) == 0 {
+	// 	return nil
+	// }
+
+	// fmt.Println("Connection handleAckFrame", s.sentPacketHandler)
 
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
@@ -2597,5 +2608,7 @@ func (s *connection) Unlock() {
 
 // BPF_CC_TAG
 func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
+	// fmt.Println("Connection RegisterBPFPacket", s.sentPacketHandler)
+	ackhandler.Tmp = s.sentPacketHandler
 	s.sentPacketHandler.RegisterBPFPacket(prc)
 }

@@ -43,6 +43,7 @@ type SentPacketHandler interface {
 
 	// BPF_CC_TAG
 	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
+	SetPeerIsSendServer(bool)
 }
 
 type sentPacketTracker interface {

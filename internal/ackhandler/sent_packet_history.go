@@ -14,12 +14,17 @@ type sentPacketHistory struct {
 	numOutstanding int
 
 	highestPacketNumber protocol.PacketNumber
+
+	// BPF_CC_TAG // TODO: clean up whats not needed
+	updateLargestSent func(pn protocol.PacketNumber)
+	largestSent       protocol.PacketNumber
 }
 
 func newSentPacketHistory() *sentPacketHistory {
 	return &sentPacketHistory{
 		packets:             make([]*packet, 0, 32),
 		highestPacketNumber: protocol.InvalidPacketNumber,
+		largestSent:         protocol.InvalidPacketNumber,
 	}
 }
 
@@ -66,11 +71,17 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 }
 
 // BPF_CC_TAG
-func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
+func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF, pns *packetNumberSpace) {
 	// TODONOW: what is needed here?
 	pn := protocol.PacketNumber(prc.PacketNumber)
 	tm := time.Unix(0, prc.SentTime)
 	le := protocol.ByteCount(prc.Length)
+
+	// We also need to update the largest sent packet number
+	// from the sent_packet_handler
+	if pn > pns.largestSent {
+		pns.largestSent = pn
+	}
 
 	// We do not check for sequential packet number use for BPF packets
 	// since those could be "registered" out of order. (TODONOW: i think?)
@@ -87,7 +98,9 @@ func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterConta
 
 	// Insert the BPF packet at the correct position
 	// (i.e., the position of the first packet with a higher packet number)
+	// lock := &sync.Mutex{}
 	for i, p := range h.packets {
+		// go func(p *packet, i int, lock *sync.Mutex) {
 		if p == nil || p.PacketNumber > pn {
 			h.packets = append(h.packets[:i], append([]*packet{bpf_packet}, h.packets[i:]...)...)
 
@@ -98,9 +111,10 @@ func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterConta
 			}
 
 			return
-		}
-	}
 
+		}
+		// }(p, i, lock) // TODONOW: use go routine with lock?
+	}
 }
 
 // Iterate iterates through all packets.
@@ -139,8 +153,24 @@ func (h *sentPacketHistory) Len() int {
 
 func (h *sentPacketHistory) Remove(pn protocol.PacketNumber) error {
 	idx, ok := h.getIndex(pn)
-	if !ok {
-		return fmt.Errorf("packet %d not found in sent packet history", pn)
+	if !ok { // Potentially we have to wait until the packet is registered
+
+		// BPF_CC_TAG
+		if packet_setting.BPF_PACKET_REGISTRATION {
+			max_iterations := 100
+			for i := 0; i < max_iterations; i++ {
+				idx, ok = h.getIndex(pn)
+				if ok {
+					break
+				}
+				time.Sleep(1 * time.Millisecond)
+			}
+			if !ok {
+				return fmt.Errorf("packet %d not found in sent packet history", pn)
+			}
+		} else {
+			return fmt.Errorf("packet %d not found in sent packet history", pn)
+		}
 	}
 	p := h.packets[idx]
 	if p.outstanding() {
@@ -170,13 +200,55 @@ func (h *sentPacketHistory) Remove(pn protocol.PacketNumber) error {
 
 // getIndex gets the index of packet p in the packets slice.
 func (h *sentPacketHistory) getIndex(p protocol.PacketNumber) (int, bool) {
+
+	if len(h.packets) > 0 && h.packets[0] == nil {
+		h.cleanupStart()
+	}
 	if len(h.packets) == 0 {
 		return 0, false
 	}
+
 	first := h.packets[0].PacketNumber
 	if p < first {
 		return 0, false
 	}
+
+	// BPF_CC_TAG
+	// In case the packet registering is on we cannot be sure that
+	// all packets are already registered.
+	// Therefore a little more complex search is needed.
+	if packet_setting.BPF_PACKET_REGISTRATION {
+
+		// TODONOW: turn into algo with better complexity
+		for i, pack := range h.packets {
+			if pack == nil {
+				continue
+			}
+			if pack.PacketNumber == p {
+				return i, true
+			}
+		}
+		return 0, false
+
+		// // Do binary search for the index and return 0, false if
+		// // the index is not found
+		// low := 0
+		// high := len(h.packets) - 1
+		// for low <= high {
+		// 	mid := (low + high) / 2
+		// 	if h.packets[mid].PacketNumber == p {
+		// 		return mid, true
+		// 	}
+		// 	if h.packets[mid].PacketNumber < p {
+		// 		low = mid + 1
+		// 	} else {
+		// 		high = mid - 1
+		// 	}
+		// }
+		// return 0, false
+
+	}
+
 	index := int(p - first)
 	if index > len(h.packets)-1 {
 		return 0, false

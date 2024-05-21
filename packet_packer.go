@@ -1044,19 +1044,6 @@ func (p *packetPacker) appendShortHeaderPacket(
 		packet_setting.PacketNumberIncrementBPFHandler(int64(pn), p.connection)
 	}
 
-	// fmt.Printf("-------------------- %d %d \n", len(pl.streamFrames), len(pl.frames))
-	// // REMOVENOW
-	// // go through all streamFrames
-	// for i := range pl.streamFrames {
-	// 	f := &pl.streamFrames[i]
-	// 	b := f.Frame.Data
-	// 	bl := len(b)
-	// 	for j := 0; j < min(bl, 100); j++ {
-	// 		fmt.Printf("%02x ", b[j])
-	// 	}
-	// 	fmt.Printf("\n\n")
-	// }
-
 	return shortHeaderPacket{
 		PacketNumber:         pn,
 		PacketNumberLen:      pnLen,

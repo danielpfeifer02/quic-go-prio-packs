@@ -29,6 +29,9 @@ const (
 	maxPTODuration = 60 * time.Second
 )
 
+// TEMPORARY_TAG
+var Tmp SentPacketHandler
+
 type packetNumberSpace struct {
 	history *sentPacketHistory
 	pns     packetNumberGenerator
@@ -52,11 +55,21 @@ func newPacketNumberSpace(initialPN protocol.PacketNumber, skipPNs bool) *packet
 	} else {
 		pns = newSequentialPacketNumberGenerator(initialPN)
 	}
-	return &packetNumberSpace{
+	space := &packetNumberSpace{
 		history:      newSentPacketHistory(),
 		pns:          pns,
 		largestSent:  protocol.InvalidPacketNumber,
 		largestAcked: protocol.InvalidPacketNumber,
+	}
+	return space
+}
+
+// BPF_CC_TAG
+func (h *packetNumberSpace) updateLargestSent() {
+	pn := h.history.largestSent
+	if pn > h.largestSent {
+		fmt.Println("updateLargestSent with pn", pn)
+		h.largestSent = pn
 	}
 }
 
@@ -106,6 +119,9 @@ type sentPacketHandler struct {
 
 	tracer *logging.ConnectionTracer
 	logger utils.Logger
+
+	// BPF_CC_TAG
+	peerIsSendServer bool
 }
 
 var (
@@ -144,12 +160,20 @@ func newSentPacketHandler(
 		perspective:                    pers,
 		tracer:                         tracer,
 		logger:                         logger,
+
+		// BPF_CC_TAG
+		peerIsSendServer: false,
 	}
 	if enableECN {
 		h.enableECN = true
 		h.ecnTracker = newECNTracker(logger, tracer)
 	}
 	return h
+}
+
+// BPF_CC_TAG
+func (h *sentPacketHandler) SetPeerIsSendServer(b bool) {
+	h.peerIsSendServer = b
 }
 
 func (h *sentPacketHandler) removeFromBytesInFlight(p *packet) {
@@ -240,8 +264,33 @@ func (h *sentPacketHandler) packetsInFlight() int {
 
 // BPF_CC_TAG
 func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
-	fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
-	h.appDataPackets.history.SentBPFPacket(prc)
+
+	// // TEMPORARY_TAG
+	// Tmp = *h
+
+	// fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
+	go h.appDataPackets.history.SentBPFPacket(prc, h.appDataPackets)
+
+	pn := protocol.PacketNumber(prc.PacketNumber)
+	if pn > h.appDataPackets.largestSent {
+		h.appDataPackets.largestSent = pn
+		// fmt.Println("RegisterBPFPacket: setting largestSent to", pn)
+	}
+
+	// fmt.Println(prc.SentTime)
+	tm := time.Unix(0, prc.SentTime)
+	// fmt.Println("Time:", tm)
+	ln := protocol.ByteCount(prc.Length)
+	// BPF packets are not retransmittable, since they are only redirected to the BPF program.
+	go h.congestion.OnPacketSent(tm, h.bytesInFlight, pn, ln, false)
+
+	// TODO: necessary? register should only be called once initial and handshake phases are done
+	// if h.initialPackets != nil && h.initialPackets.history != nil {
+	// 	h.initialPackets.history.SentBPFPacket(prc)
+	// }
+	// if h.handshakePackets != nil && h.handshakePackets.history != nil {
+	// 	h.handshakePackets.history.SentBPFPacket(prc)
+	// }
 }
 
 func (h *sentPacketHandler) SentPacket(
@@ -263,7 +312,9 @@ func (h *sentPacketHandler) SentPacket(
 		}
 	}
 
-	pnSpace.largestSent = pn
+	if pn > pnSpace.largestSent {
+		pnSpace.largestSent = pn
+	}
 	isAckEliciting := len(streamFrames) > 0 || len(frames) > 0
 
 	if isAckEliciting {
@@ -273,7 +324,12 @@ func (h *sentPacketHandler) SentPacket(
 			h.numProbesToSend--
 		}
 	}
-	h.congestion.OnPacketSent(t, h.bytesInFlight, pn, size, isAckEliciting)
+
+	// BPF_CC_TAG
+	// TODONOW: other way to handle translation of packet numbers?
+	if !(packet_setting.BPF_PACKET_REGISTRATION && !h.peerIsSendServer) {
+		h.congestion.OnPacketSent(t, h.bytesInFlight, pn, size, isAckEliciting)
+	}
 
 	if encLevel == protocol.Encryption1RTT && h.ecnTracker != nil {
 		h.ecnTracker.SentPacket(pn, ecn)
@@ -322,13 +378,33 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 	pnSpace := h.getPacketNumberSpace(encLevel)
 
 	largestAcked := ack.LargestAcked()
-	// TODONOW
+
+	// TODONOW: best way to synchronize this?
+	special_case := packet_setting.BPF_PACKET_REGISTRATION && !h.peerIsSendServer
+	if special_case {
+
+		// // TODONOW
+		// pnSpace.updateLargestSent()
+		// largestAcked = ack.LargestAcked() // TODONOW: can this even be different?
+		fmt.Println("largestSent is", pnSpace.largestSent, "and largestAcked is", largestAcked)
+
+		max_iterations := 128 // TODONOW: somehow, however big this is there are cases where largestAcked > largestSent
+		for i := 0; i < max_iterations; i++ {
+			if pnSpace.largestSent > largestAcked {
+				break
+			}
+			time.Sleep(1 * time.Millisecond)
+			pnSpace.updateLargestSent()
+			largestAcked = ack.LargestAcked()
+		}
+	}
+
 	if largestAcked > pnSpace.largestSent {
 		return false, &qerr.TransportError{
 			ErrorCode: qerr.ProtocolViolation,
 			// PACKET_NUMBER_TAG
 			// Given that the user-space program correctly sets the
-			// largest setn packet number given by the bpf program
+			// largest sent packet number given by the bpf program
 			// this should not occur.
 			ErrorMessage: fmt.Sprintf("received ACK for an unsent packet (largest acked: %d, largest sent: %d, Enc: %s)",
 				largestAcked, pnSpace.largestSent, encLevel.String()),
@@ -980,11 +1056,13 @@ func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
 
 func (h *sentPacketHandler) SetHighestSentPacketNumber(pn protocol.PacketNumber) {
 	if !packet_setting.ALLOW_SETTING_PN {
-		fmt.Println("Trying to set highest setn packet number when not allowed (sent_packet_handler.go)")
+		fmt.Println("Trying to set highest sent packet number when not allowed (sent_packet_handler.go)")
 		return
 	}
 
-	h.appDataPackets.largestSent = pn
+	if pn > h.appDataPackets.largestSent {
+		h.appDataPackets.largestSent = pn
+	}
 
 	if !packet_setting.SET_ONLY_APP_DATA {
 		// TODO: what effect does it have to just set all the other packet numbers to this value?
