@@ -269,7 +269,9 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 	// Tmp = *h
 
 	// fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
-	go h.appDataPackets.history.SentBPFPacket(prc, h.appDataPackets)
+	if h.appDataPackets != nil && h.appDataPackets.history != nil {
+		go h.appDataPackets.history.SentBPFPacket(prc, h.appDataPackets)
+	}
 
 	pn := protocol.PacketNumber(prc.PacketNumber)
 	if pn > h.appDataPackets.largestSent {
@@ -386,7 +388,7 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 		// // TODONOW
 		// pnSpace.updateLargestSent()
 		// largestAcked = ack.LargestAcked() // TODONOW: can this even be different?
-		fmt.Println("largestSent is", pnSpace.largestSent, "and largestAcked is", largestAcked)
+		// fmt.Println("largestSent is", pnSpace.largestSent, "and largestAcked is", largestAcked)
 
 		max_iterations := 128 // TODONOW: somehow, however big this is there are cases where largestAcked > largestSent
 		for i := 0; i < max_iterations; i++ {

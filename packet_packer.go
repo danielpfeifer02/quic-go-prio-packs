@@ -448,7 +448,7 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			connID = p.getDestConnID(prio)
 
 			// BPF_MAP_TAG
-			if packet_setting.ConnectionUpdateBPFHandler != nil {
+			if packet_setting.ConnectionUpdateBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 				packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
 			}
 
@@ -570,7 +570,7 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	connID := p.getDestConnID(prio)
 
 	// BPF_MAP_TAG
-	if packet_setting.ConnectionUpdateBPFHandler != nil {
+	if packet_setting.ConnectionUpdateBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
 	}
 
@@ -820,7 +820,7 @@ func (p *packetPacker) MaybePackProbePacket(encLevel protocol.EncryptionLevel, m
 		connID := p.getDestConnID(priority_setting.PrioProbePacket)
 
 		// BPF_MAP_TAG
-		if packet_setting.ConnectionUpdateBPFHandler != nil {
+		if packet_setting.ConnectionUpdateBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 			packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
 		}
 
@@ -906,7 +906,7 @@ func (p *packetPacker) PackMTUProbePacket(ping ackhandler.Frame, size protocol.B
 	connID := p.getDestConnID(priority_setting.PrioMTUProbePacket)
 
 	// BPF_MAP_TAG
-	if packet_setting.ConnectionUpdateBPFHandler != nil {
+	if packet_setting.ConnectionUpdateBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		packet_setting.ConnectionUpdateBPFHandler(connID.Bytes(), uint8(connID.Len()), p.connection)
 	}
 
@@ -932,7 +932,7 @@ func (p *packetPacker) getLongHeader(encLevel protocol.EncryptionLevel, v protoc
 	hdr.DestConnectionID = p.getDestConnID(priority_setting.PrioLongHeaderPacket)
 
 	// BPF_MAP_TAG
-	if packet_setting.ConnectionUpdateBPFHandler != nil {
+	if packet_setting.ConnectionUpdateBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		packet_setting.ConnectionUpdateBPFHandler(hdr.DestConnectionID.Bytes(), uint8(hdr.DestConnectionID.Len()), p.connection)
 	}
 
@@ -978,7 +978,7 @@ func (p *packetPacker) appendLongHeaderPacket(buffer *packetBuffer, header *wire
 	}
 
 	// PACKET_NUMBER_TAG
-	if packet_setting.PacketNumberIncrementBPFHandler != nil {
+	if packet_setting.PacketNumberIncrementBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		// Handle the change of packet number by calling the BPF handler function
 		// defined by the user who knows about the specific BPF setup
 		packet_setting.PacketNumberIncrementBPFHandler(int64(header.PacketNumber), p.connection)
@@ -1038,7 +1038,7 @@ func (p *packetPacker) appendShortHeaderPacket(
 	}
 
 	// PACKET_NUMBER_TAG
-	if packet_setting.PacketNumberIncrementBPFHandler != nil {
+	if packet_setting.PacketNumberIncrementBPFHandler != nil && p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		// Handle the change of packet number by calling the BPF handler function
 		// defined by the user who knows about the specific BPF setup
 		packet_setting.PacketNumberIncrementBPFHandler(int64(pn), p.connection)

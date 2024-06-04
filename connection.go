@@ -936,6 +936,11 @@ func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protoc
 		return false
 	}
 
+	// BPF_CC_TAG
+	if packet_setting.IS_CLIENT && packet_setting.ReceivedPacketAtTimestampHandler != nil { //&& s.LocalAddr().String() == packet_setting.RELAY_OOB_ADDR {
+		packet_setting.ReceivedPacketAtTimestampHandler(int64(pn), p.rcvTime.UnixNano(), s)
+	}
+
 	if s.logger.Debug() {
 		s.logger.Debugf("<- Reading packet %d (%d bytes) for connection %s, 1-RTT", pn, p.Size(), destConnID)
 		wire.LogShortHeader(s.logger, destConnID, pn, pnLen, keyPhase)
@@ -1537,7 +1542,7 @@ func (s *connection) handleNewTokenFrame(frame *wire.NewTokenFrame) error {
 func (s *connection) handleNewConnectionIDFrame(f *wire.NewConnectionIDFrame) error {
 
 	// PACKET_NUMBER_TAG
-	if packet_setting.ConnectionInitiationBPFHandler != nil {
+	if packet_setting.ConnectionInitiationBPFHandler != nil && s.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		// Call the handler that makes sure that the initiation of the connection
 		// is handled correctly with all the bpf maps
 		packet_setting.ConnectionInitiationBPFHandler(f.ConnectionID.Bytes(), uint8(f.ConnectionID.Len()), s)
@@ -1549,7 +1554,7 @@ func (s *connection) handleNewConnectionIDFrame(f *wire.NewConnectionIDFrame) er
 func (s *connection) handleRetireConnectionIDFrame(f *wire.RetireConnectionIDFrame, destConnID protocol.ConnectionID) error {
 
 	// PACKET_NUMBER_TAG
-	if packet_setting.ConnectionRetirementBPFHandler != nil {
+	if packet_setting.ConnectionRetirementBPFHandler != nil && s.LocalAddr().String() == packet_setting.RELAY_ADDR {
 		// Call the handler that makes sure that the retirement of the connection
 		// is handled correctly with all the bpf maps
 		packet_setting.ConnectionRetirementBPFHandler(destConnID.Bytes(), uint8(destConnID.Len()), s)

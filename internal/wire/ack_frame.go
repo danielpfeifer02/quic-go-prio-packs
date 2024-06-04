@@ -268,14 +268,14 @@ func encodeAckDelay(delay time.Duration) uint64 {
 }
 
 // BPF_MAP_TAG
-func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODONOW: fix this
+func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODONOW: fix this. also: still needed?
 
 	// This rules out that the Acks are changed at server or client side
 	// in the example
 	if packet_setting.AckTranslationBPFHandler == nil {
 		return
 	}
-	if conn.RemoteAddr().String() == packet_setting.SERVER_ADDR {
+	if conn.LocalAddr().String() != packet_setting.RELAY_ADDR {
 		return
 	}
 

@@ -60,6 +60,8 @@ var (
 	// CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil // TODO: remove
 
 	SERVER_ADDR    string = "192.168.10.1:4242"
+	RELAY_ADDR     string = "192.168.11.2:4242"
+	RELAY_OOB_ADDR string = "192.168.11.2:12345"
 	IS_CLIENT      bool   = false
 	EXCHANGE_PRIOS bool   = true
 
@@ -69,4 +71,7 @@ var (
 
 	// BPF_CC_TAG
 	BPF_PACKET_REGISTRATION bool = false
+
+	ReceivedPacketAtTimestampHandler func(pn, ts int64, conn QuicConnection) = nil
+	Oob_conn                         QuicConnection                          = nil
 )
