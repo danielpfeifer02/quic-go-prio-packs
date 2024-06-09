@@ -44,6 +44,7 @@ type SentPacketHandler interface {
 	// BPF_CC_TAG
 	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
 	SetPeerIsSendServer(bool)
+	SetConnection(packet_setting.QuicConnection)
 }
 
 type sentPacketTracker interface {

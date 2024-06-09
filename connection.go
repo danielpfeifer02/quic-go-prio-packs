@@ -306,6 +306,7 @@ var newConnection = func(
 
 	// BPF_CC_TAG
 	s.sentPacketHandler.SetPeerIsSendServer(conn.RemoteAddr().String() == packet_setting.SERVER_ADDR)
+	s.sentPacketHandler.SetConnection(s)
 
 	s.mtuDiscoverer = newMTUDiscoverer(s.rttStats, getMaxPacketSize(s.conn.RemoteAddr()), s.sentPacketHandler.SetMaxDatagramSize)
 	params := &wire.TransportParameters{
@@ -2596,7 +2597,7 @@ func (s *connection) SetPacketNumber(pn int64) {
 
 func (s *connection) SetHighestSent(pn int64) {
 
-	s.mutex.Lock()
+	s.mutex.Lock() // TODO: need to lock?
 	defer s.mutex.Unlock()
 
 	pn_typed := protocol.PacketNumber(pn)

@@ -54,6 +54,9 @@ var (
 	ConnectionUpdateBPFHandler      func(id []byte, l uint8, conn QuicConnection) = nil
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
 
+	// get the largest sent packet number of a connection
+	ConnectionGetLargestSentPacketNumber func(conn QuicConnection) int64 = nil
+
 	// Important note: this function should return "pn, err" in case of an error
 	AckTranslationBPFHandler         func(pn int64, conn QuicConnection) (int64, error) = nil
 	AckTranslationDeletionBPFHandler func(pn int64, conn QuicConnection)                = nil
@@ -73,5 +76,4 @@ var (
 	BPF_PACKET_REGISTRATION bool = false
 
 	ReceivedPacketAtTimestampHandler func(pn, ts int64, conn QuicConnection) = nil
-	Oob_conn                         QuicConnection                          = nil
 )
