@@ -268,37 +268,133 @@ func (h *sentPacketHandler) packetsInFlight() int {
 	return packetsInFlight
 }
 
+// DEBUG_TAG
+type dummy struct{}
+
+func (*dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
+func (*dummy) OnLost(f wire.Frame)  { fmt.Println("OnLost") }
+
 // BPF_CC_TAG
 func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
 
-	// // TEMPORARY_TAG
-	// Tmp = *h
-
+	// DEBUG_TAG
+	// TODONOW: all the correct values
 	pn := protocol.PacketNumber(prc.PacketNumber)
-	if pn > h.appDataPackets.largestSent {
-		h.appDataPackets.largestSent = pn
-		// fmt.Println("RegisterBPFPacket: setting largestSent to", pn)
+	t := time.Unix(0, prc.SentTime)
+	size := protocol.ByteCount(prc.Length)
+
+	encLevel := protocol.Encryption1RTT
+	streamFrames := prc.StreamFrames
+	frames := prc.Frames
+
+	if len(frames) > 0 {
+		panic("BPF packets should not have any frames besides StreamFrames")
 	}
 
-	// fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
-	if h.appDataPackets != nil && h.appDataPackets.history != nil {
-		go h.appDataPackets.history.SentBPFPacket(prc, h.appDataPackets)
+	largestAcked := protocol.InvalidPacketNumber
+	isPathMTUProbePacket := false
+	ecn := protocol.ECN(1)
+
+	streamFramesWithHandler := make([]StreamFrame, 0)
+	for _, ps_sf := range streamFrames {
+		sf := &wire.StreamFrame{
+			StreamID:       ps_sf.StreamID,
+			Offset:         ps_sf.Offset,
+			Data:           ps_sf.Data,
+			Fin:            ps_sf.Fin,
+			DataLenPresent: ps_sf.DataLenPresent,
+		}
+		dummy := &dummy{}
+		streamFramesWithHandler = append(streamFramesWithHandler, StreamFrame{
+			Frame:   sf,
+			Handler: dummy,
+		})
 	}
 
-	// fmt.Println(prc.SentTime)
-	tm := time.Unix(0, prc.SentTime)
-	// fmt.Println("Time:", tm)
-	ln := protocol.ByteCount(prc.Length)
-	// BPF packets are not retransmittable, since they are only redirected to the BPF program.
-	go h.congestion.OnPacketSent(tm, h.bytesInFlight, pn, ln, false)
+	h.bytesSent += size
 
-	// TODO: necessary? register should only be called once initial and handshake phases are done
-	// if h.initialPackets != nil && h.initialPackets.history != nil {
-	// 	h.initialPackets.history.SentBPFPacket(prc)
+	pnSpace := h.getPacketNumberSpace(encLevel)
+	if h.logger.Debug() && pnSpace.history.HasOutstandingPackets() {
+		for p := max(0, pnSpace.largestSent+1); p < pn; p++ {
+			h.logger.Debugf("Skipping packet number %d", p)
+		}
+	}
+
+	if pn > pnSpace.largestSent {
+		pnSpace.largestSent = pn
+	}
+	isAckEliciting := len(streamFrames) > 0 || len(frames) > 0
+
+	if isAckEliciting {
+		pnSpace.lastAckElicitingPacketTime = t
+		h.bytesInFlight += size
+		if h.numProbesToSend > 0 {
+			h.numProbesToSend--
+		}
+	} else {
+		panic("BPF packets should always be ack-eliciting")
+	}
+
+	// // BPF_CC_TAG
+	// // TODONOW: other way to handle translation of packet numbers?
+	// if !(packet_setting.BPF_PACKET_REGISTRATION && !h.peerIsSendServer) {
+	// 	h.congestion.OnPacketSent(t, h.bytesInFlight, pn, size, isAckEliciting)
 	// }
-	// if h.handshakePackets != nil && h.handshakePackets.history != nil {
-	// 	h.handshakePackets.history.SentBPFPacket(prc)
+
+	if encLevel == protocol.Encryption1RTT && h.ecnTracker != nil {
+		h.ecnTracker.SentPacket(pn, ecn)
+	}
+
+	p := getPacket()
+	p.SendTime = t
+	p.PacketNumber = pn
+	p.EncryptionLevel = encLevel
+	p.Length = size
+	p.LargestAcked = largestAcked
+	p.StreamFrames = streamFramesWithHandler
+	p.Frames = make([]Frame, 0) // TODO: there should be no other frames anyway
+	p.IsPathMTUProbePacket = isPathMTUProbePacket
+	p.includedInBytesInFlight = true
+
+	pnSpace.history.SentBPFPacket_test(p)
+	if h.tracer != nil && h.tracer.UpdatedMetrics != nil {
+		h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
+	}
+	h.setLossDetectionTimer()
+
+	// // // TEMPORARY_TAG
+	// // Tmp = *h
+
+	// pn := protocol.PacketNumber(prc.PacketNumber)
+	// if pn > h.appDataPackets.largestSent {
+	// 	h.appDataPackets.largestSent = pn
+	// 	// fmt.Println("RegisterBPFPacket: setting largestSent to", pn)
 	// }
+
+	// // fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
+	// if h.appDataPackets != nil && h.appDataPackets.history != nil {
+
+	// 	// fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
+	// 	go func() {
+	// 		h.appDataPackets.history.SentBPFPacket(prc, h.appDataPackets)
+	// 		h.setLossDetectionTimer()
+	// 	}()
+	// }
+
+	// // fmt.Println(prc.SentTime)
+	// tm := time.Unix(0, prc.SentTime)
+	// // fmt.Println("Time:", tm)
+	// ln := protocol.ByteCount(prc.Length)
+	// // BPF packets are not retransmittable, since they are only redirected to the BPF program.
+	// go h.congestion.OnPacketSent(tm, h.bytesInFlight, pn, ln, true)
+
+	// // TODO: necessary? register should only be called once initial and handshake phases are done
+	// // if h.initialPackets != nil && h.initialPackets.history != nil {
+	// // 	h.initialPackets.history.SentBPFPacket(prc)
+	// // }
+	// // if h.handshakePackets != nil && h.handshakePackets.history != nil {
+	// // 	h.handshakePackets.history.SentBPFPacket(prc)
+	// // }
 }
 
 func (h *sentPacketHandler) SentPacket(
@@ -311,6 +407,7 @@ func (h *sentPacketHandler) SentPacket(
 	size protocol.ByteCount,
 	isPathMTUProbePacket bool,
 ) {
+
 	h.bytesSent += size
 
 	pnSpace := h.getPacketNumberSpace(encLevel)
@@ -716,6 +813,7 @@ func (h *sentPacketHandler) setLossDetectionTimer() {
 		}
 		return
 	}
+
 	h.alarm = ptoTime
 	if h.tracer != nil && h.tracer.SetLossTimer != nil && h.alarm != oldAlarm {
 		h.tracer.SetLossTimer(logging.TimerTypePTO, encLevel, h.alarm)
@@ -723,6 +821,10 @@ func (h *sentPacketHandler) setLossDetectionTimer() {
 }
 
 func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.EncryptionLevel) error {
+
+	// DEBUG_TAG
+	// fmt.Println("detectLostPackets")
+
 	pnSpace := h.getPacketNumberSpace(encLevel)
 	pnSpace.lossTime = time.Time{}
 
@@ -737,6 +839,12 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 
 	priorInFlight := h.bytesInFlight
 	return pnSpace.history.Iterate(func(p *packet) (bool, error) {
+
+		// DEBUG_TAG
+		// fmt.Println("Largest Acked:", pnSpace.largestAcked,
+		// 	"Packet Number:", p.PacketNumber,
+		// 	"Threshold:", packetThreshold)
+
 		if p.PacketNumber > pnSpace.largestAcked {
 			return false, nil
 		}
@@ -771,6 +879,8 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 			pnSpace.lossTime = lossTime
 		}
 		if packetLost {
+			// DEBUG_TAG
+			fmt.Println("Packet Lost")
 			pnSpace.history.DeclareLost(p.PacketNumber)
 			if !p.skippedPacket {
 				// the bytes in flight need to be reduced no matter if the frames in this packet will be retransmitted
@@ -789,6 +899,10 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 }
 
 func (h *sentPacketHandler) OnLossDetectionTimeout() error {
+
+	// DEBUG_TAG
+	fmt.Println("OnLossDetectionTimeout")
+
 	defer h.setLossDetectionTimer()
 	earliestLossTime, encLevel := h.getLossTimeAndSpace()
 	if !earliestLossTime.IsZero() {
@@ -855,6 +969,8 @@ func (h *sentPacketHandler) OnLossDetectionTimeout() error {
 		// pn := h.PopPacketNumber(protocol.Encryption1RTT)
 		// h.getPacketNumberSpace(protocol.Encryption1RTT).history.SkippedPacket(pn)
 
+		// DEBUG_TAG
+		fmt.Println("Set to sending PTO packet")
 		h.ptoMode = SendPTOAppData
 	default:
 		return fmt.Errorf("PTO timer in unexpected encryption level: %s", encLevel)
@@ -964,6 +1080,8 @@ func (h *sentPacketHandler) QueueProbePacket(encLevel protocol.EncryptionLevel) 
 	if p == nil {
 		return false
 	}
+	// DEBUG_TAG
+	fmt.Println("QueueProbePacket")
 	h.queueFramesForRetransmission(p)
 	// TODO: don't declare the packet lost here.
 	// Keep track of acknowledged frames instead.
@@ -986,6 +1104,8 @@ func (h *sentPacketHandler) queueFramesForRetransmission(p *packet) {
 		}
 	}
 	for _, f := range p.StreamFrames {
+		// DEBUG_TAG
+		fmt.Println("queueFramesForRetransmission")
 		if f.Handler != nil {
 			f.Handler.OnLost(f.Frame)
 		}

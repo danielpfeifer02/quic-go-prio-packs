@@ -751,6 +751,8 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 	}
 
 	if hasRetransmission {
+		// DEBUG_TAG
+		// fmt.Println("if hasRetransmission {")
 		for {
 			remainingLen := maxFrameSize - pl.length
 			if remainingLen < protocol.MinStreamFrameSize {
@@ -764,8 +766,15 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			pl.length += f.Length(v)
 
 			// STREAM_ONLY_TAG
+			// RETRANSMISSION_TAG
 			// TODO: what exactly is sent here? Any need to leave this function early to
 			// TODO: ensure that streams are always sent in a separate packet?
+			// TODO: only leave early if its the right connection and bpf stuff is enabled
+
+			if _, ok := f.(*wire.StreamFrame); ok {
+				fmt.Println("Retransmission of a stream frame with length ", pl.length, " and data ", f.(*wire.StreamFrame).Data)
+			}
+			return pl
 		}
 	}
 
@@ -799,6 +808,10 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			panic("more than one stream frame in a packet")
 		}
 	}
+
+	// DEBUG_TAG
+	// fmt.Println("Sending packet with length ", pl.length)
+
 	return pl
 }
 

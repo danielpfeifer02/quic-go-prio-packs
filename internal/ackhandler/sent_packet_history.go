@@ -70,51 +70,124 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 	}
 }
 
-// BPF_CC_TAG
-func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF, pns *packetNumberSpace) {
-	// TODONOW: what is needed here?
-	pn := protocol.PacketNumber(prc.PacketNumber)
-	tm := time.Unix(0, prc.SentTime)
-	le := protocol.ByteCount(prc.Length)
+// DEBUG_TAG
+func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 
-	// We also need to update the largest sent packet number
-	// from the sent_packet_handler
-	if pn > pns.largestSent {
-		pns.largestSent = pn
+	fmt.Println("TEST")
+
+	if p_in.PacketNumber > h.highestPacketNumber {
+		h.highestPacketNumber = p_in.PacketNumber
 	}
-
-	// We do not check for sequential packet number use for BPF packets
-	// since those could be "registered" out of order. (TODONOW: i think?)
-
-	bpf_packet := &packet{ // TODO: what fields should be set here?
-		SendTime:        tm,
-		PacketNumber:    pn,
-		StreamFrames:    nil,
-		Frames:          nil,
-		LargestAcked:    protocol.InvalidPacketNumber,
-		Length:          le,
-		EncryptionLevel: protocol.Encryption0RTT,
-	}
-
 	// Insert the BPF packet at the correct position
 	// (i.e., the position of the first packet with a higher packet number)
 	// lock := &sync.Mutex{}
-	for i, p := range h.packets {
+
+	pn := p_in.PacketNumber
+	for i := 0; i <= len(h.packets); i++ {
+		var p *packet
+		if i == len(h.packets) {
+			p = nil
+		} else {
+			p = h.packets[i]
+		}
 		// go func(p *packet, i int, lock *sync.Mutex) {
 		if p == nil || p.PacketNumber > pn {
-			h.packets = append(h.packets[:i], append([]*packet{bpf_packet}, h.packets[i:]...)...)
+			h.packets = append(h.packets[:i], append([]*packet{p_in}, h.packets[i:]...)...)
 
-			h.numOutstanding++
+			if p_in.outstanding() {
+				h.numOutstanding++
+			}
 
 			if pn > h.highestPacketNumber {
 				h.highestPacketNumber = pn
 			}
 
+			fmt.Println("BPF packet inserted at position", i, "with history of length", len(h.packets))
 			return
 
 		}
 		// }(p, i, lock) // TODONOW: use go routine with lock?
 	}
+	fmt.Println("This should not happen")
+}
+
+// TODO: clean up this mess
+// BPF_CC_TAG
+func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF, pns *packetNumberSpace) {
+	// TODONOW: what is needed here?
+	// pn := protocol.PacketNumber(prc.PacketNumber)
+	// tm := time.Unix(0, prc.SentTime)
+	// le := protocol.ByteCount(prc.Length)
+
+	// // We also need to update the largest sent packet number
+	// // from the sent_packet_handler
+	// if pn > pns.largestSent {
+	// 	pns.largestSent = pn
+	// }
+
+	// // TODONOW: get real stream frames
+	// // RETRANSMISSION_TAG
+	// sf := make([]StreamFrame, 0)
+	// f := &wire.StreamFrame{
+	// 	StreamID:       protocol.StreamID(prc.StreamID),
+	// 	Offset:         protocol.ByteCount(prc.Offset),
+	// 	Data:           prc.Data,
+	// 	Fin:            prc.Fin,
+	// 	DataLenPresent: prc.DataLenPresent,
+	// }
+
+	// // dummy_handler := &dummy{} // TODO: how to define an appropriate handler?
+
+	// final_sf := StreamFrame{
+	// 	Frame:   f,
+	// 	Handler: nil,
+	// }
+	// sf = append(sf, final_sf)
+
+	// // We do not check for sequential packet number use for BPF packets
+	// // since those could be "registered" out of order. (TODONOW: i think?)
+
+	// bpf_packet := &packet{ // TODO: what fields should be set here?
+	// 	SendTime:        tm,
+	// 	PacketNumber:    pn,
+	// 	StreamFrames:    sf,
+	// 	Frames:          nil,
+	// 	LargestAcked:    protocol.InvalidPacketNumber,
+	// 	Length:          le,
+	// 	EncryptionLevel: protocol.Encryption0RTT,
+
+	// 	declaredLost:         false,
+	// 	skippedPacket:        false,
+	// 	IsPathMTUProbePacket: false,
+	// }
+
+	// // Insert the BPF packet at the correct position
+	// // (i.e., the position of the first packet with a higher packet number)
+	// // lock := &sync.Mutex{}
+	// for i := 0; i <= len(h.packets); i++ {
+	// 	var p *packet
+	// 	if i == len(h.packets) {
+	// 		p = nil
+	// 	} else {
+	// 		p = h.packets[i]
+	// 	}
+	// 	// go func(p *packet, i int, lock *sync.Mutex) {
+	// 	if p == nil || p.PacketNumber > pn {
+	// 		h.packets = append(h.packets[:i], append([]*packet{bpf_packet}, h.packets[i:]...)...)
+
+	// 		h.numOutstanding++
+
+	// 		if pn > h.highestPacketNumber {
+	// 			h.highestPacketNumber = pn
+	// 		}
+
+	// 		fmt.Println("BPF packet inserted at position", i)
+	// 		return
+
+	// 	}
+	// 	// }(p, i, lock) // TODONOW: use go routine with lock?
+	// }
+	// fmt.Println("This should not happen")
 }
 
 // Iterate iterates through all packets.

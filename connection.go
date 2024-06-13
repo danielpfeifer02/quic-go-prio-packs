@@ -644,6 +644,7 @@ runLoop:
 			}
 		}
 
+		fmt.Println("Check for timeout")
 		now := time.Now()
 		if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
 			// This could cause packets to be retransmitted.
@@ -921,6 +922,57 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 	return processed
 }
 
+// BPF_CC_TAG
+// CACHING_TAG
+// RETRANSMISSION_TAG
+func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.GeneralFrame, []packet_setting.StreamFrame, error) {
+	frames := make([]packet_setting.GeneralFrame, 0)
+	stream_frames := make([]packet_setting.StreamFrame, 0)
+
+	// Apparently parsing the frame causes some wrong internal state in the connection
+	// that's why we use a throwaway connection
+	// To avoid this overhead one could use the parsing of the frames that happens anyway
+	// later in handleFrames but this was easier to work with / debug if it was separated
+	// TODONOW: combine with other parsing
+	// TODONOW: is any state from previous packets needed for decoding
+	// TODONOW: i.e. is a throwaway connection not 100% correct?
+	throwaway_parser := *wire.NewFrameParser(s.config.EnableDatagrams)
+
+	// // print bytes in hex format
+	// fmt.Println(hex.Dump(data))
+
+	for len(data) > 0 {
+		l, frame, err := throwaway_parser.ParseNext(data, protocol.Encryption1RTT, s.version)
+		if err != nil {
+			// if strings.Contains(err.Error(), "unknown frame type") {
+			// 	return frames, stream_frames, errors.ErrUnsupported
+			// }
+			panic(err)
+		}
+		data = data[l:]
+
+		if frame == nil {
+			fmt.Println("Frame is nil")
+			break
+		}
+
+		if stream_frame, ok := frame.(*wire.StreamFrame); ok {
+			ps_sf := packet_setting.StreamFrame{
+				StreamID:       stream_frame.StreamID,
+				Offset:         stream_frame.Offset,
+				Data:           stream_frame.Data,
+				Fin:            stream_frame.Fin,
+				DataLenPresent: stream_frame.DataLenPresent,
+			}
+			stream_frames = append(stream_frames, ps_sf)
+		} else {
+			// frames = append(frames, frame)
+			panic("For now only stream frames are supported")
+		}
+	}
+	return frames, stream_frames, nil
+}
+
 func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protocol.ConnectionID) bool {
 	var wasQueued bool
 
@@ -935,6 +987,21 @@ func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protoc
 	if err != nil {
 		wasQueued = s.handleUnpackError(err, p, logging.PacketType1RTT)
 		return false
+	}
+
+	// CACHING_TAG
+	// RETRANSMISSION_TAG
+	// TODONOW: add storage of server_pn to data mapping here for retransmission
+	// TODONOW: make sure only relay does this
+	// TODO: remove from here?
+	if packet_setting.StoreServerPacket != nil && s.RemoteAddr().String() == packet_setting.SERVER_ADDR {
+		data_dup := make([]byte, len(data))
+		copy(data_dup, data)
+
+		ts := p.rcvTime.UnixNano()
+
+		// fmt.Println("Store pn", pn)
+		packet_setting.StoreServerPacket(int64(pn), ts, data_dup, s)
 	}
 
 	// BPF_CC_TAG
@@ -1297,6 +1364,11 @@ func (s *connection) handleFrames(
 	}
 	handshakeWasComplete := s.handshakeComplete
 	var handleErr error
+
+	// // CACHING_TAG
+	// // RETRANSMISSION_TAG
+	// stream_frames := make([]packet_setting.StreamFrame, 0)
+
 	for len(data) > 0 {
 		l, frame, err := s.frameParser.ParseNext(data, encLevel, s.version)
 		if err != nil {
@@ -1324,6 +1396,19 @@ func (s *connection) handleFrames(
 			// If we're logging, we need to keep parsing (but not handling) all frames.
 			handleErr = err
 		}
+
+		// // CACHING_TAG
+		// // RETRANSMISSION_TAG
+		// if stream_frame, ok := frame.(*wire.StreamFrame); ok {
+		// 	ps_sf := packet_setting.StreamFrame{
+		// 		StreamID:       stream_frame.StreamID,
+		// 		Offset:         stream_frame.Offset,
+		// 		Data:           stream_frame.Data,
+		// 		Fin:            stream_frame.Fin,
+		// 		DataLenPresent: stream_frame.DataLenPresent,
+		// 	}
+		// 	stream_frames = append(stream_frames, ps_sf)
+		// } // TODONOW: need other frame types?
 	}
 
 	if log != nil {
@@ -2142,6 +2227,8 @@ func (s *connection) registerPackedShortHeaderPacket(p shortHeaderPacket, ecn pr
 	if p.Ack != nil {
 		largestAcked = p.Ack.LargestAcked()
 	}
+	// DEBUG_TAG
+	// Everything needed for retransmit happens in SentPacket!
 	s.sentPacketHandler.SentPacket(now, p.PacketNumber, largestAcked, p.StreamFrames, p.Frames, protocol.Encryption1RTT, ecn, p.Length, p.IsPathMTUProbePacket)
 	s.connIDManager.SentPacket()
 }
@@ -2614,7 +2701,32 @@ func (s *connection) Unlock() {
 
 // BPF_CC_TAG
 func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
-	// fmt.Println("Connection RegisterBPFPacket", s.sentPacketHandler)
-	ackhandler.Tmp = s.sentPacketHandler
+
+	// Set the frames for the packet
+	// fmt.Println("Parse pn", prc.PacketNumber)
+	_, stream_frames, err := s.parseBPFSavedRawData(prc.RawData)
+	if err != nil {
+		panic(err)
+	}
+	if len(stream_frames) == 0 {
+		panic("No stream frames found in BPF packet")
+	}
+
+	prc.Frames = make([]packet_setting.GeneralFrame, 0)
+	prc.StreamFrames = stream_frames
+
+	// fmt.Println("Connection RegisterBPFPacket\n\n\n")
+	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
 	s.sentPacketHandler.RegisterBPFPacket(prc)
+
+	// DEBUG_TAG
+	// fmt.Println("Check for timeout")
+	// now := time.Now()
+	// if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
+	// 	// This could cause packets to be retransmitted.
+	// 	// Check it before trying to send packets.
+	// 	if err := s.sentPacketHandler.OnLossDetectionTimeout(); err != nil {
+	// 		s.closeLocal(err)
+	// 	}
+	// }
 }

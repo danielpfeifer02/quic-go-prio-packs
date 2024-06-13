@@ -227,6 +227,8 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 	}
 
 	if len(s.retransmissionQueue) > 0 {
+		// DEBUG_TAG
+		fmt.Println("popNewOrRetransmittedStreamFrame: retransmissionQueue")
 		f, hasMoreRetransmissions := s.maybeGetRetransmission(maxBytes, v)
 		if f != nil || hasMoreRetransmissions {
 			if f == nil {
@@ -327,6 +329,8 @@ func (s *sendStream) maybeGetRetransmission(maxBytes protocol.ByteCount, v proto
 		return newFrame, true
 	}
 	s.retransmissionQueue = s.retransmissionQueue[1:]
+	// TODONOW: can it happen here that more than one stream frame will end up in a packet?
+	// TODONOW: do we even care about this since its sent from userspace and bpf only changes pn etc?
 	return f, len(s.retransmissionQueue) > 0
 }
 
@@ -494,6 +498,10 @@ func (s *sendStreamAckHandler) OnAcked(f wire.Frame) {
 }
 
 func (s *sendStreamAckHandler) OnLost(f wire.Frame) {
+
+	// DEBUG_TAG
+	fmt.Println("sendStreamAckHandler: OnLost")
+
 	sf := f.(*wire.StreamFrame)
 	s.mutex.Lock()
 	if s.cancelWriteErr != nil {

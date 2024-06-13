@@ -3,6 +3,8 @@ package packet_setting
 import (
 	"net"
 	"sync"
+
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 )
 
 // TODO: how to make this prettier?
@@ -42,6 +44,30 @@ type PacketRegisterContainerBPF struct {
 	PacketNumber int64
 	SentTime     int64
 	Length       int64
+
+	RawData []byte
+
+	Frames       []GeneralFrame
+	StreamFrames []StreamFrame
+}
+
+type RetransmissionPacketContainer struct {
+	PacketNumber int64
+	Length       int64
+	Timestamp    int64
+	RawData      []byte
+	Valid        bool
+}
+
+type StreamFrame struct {
+	StreamID       protocol.StreamID
+	Offset         protocol.ByteCount
+	Data           []byte
+	Fin            bool
+	DataLenPresent bool
+}
+
+type GeneralFrame struct {
 }
 
 var (
@@ -53,6 +79,11 @@ var (
 	ConnectionInitiationBPFHandler  func(id []byte, l uint8, conn QuicConnection) = nil
 	ConnectionUpdateBPFHandler      func(id []byte, l uint8, conn QuicConnection) = nil
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
+
+	// RETRANSMISSON_TAG
+	StoreServerPacket                           func(pn, ts int64, data []byte, conn QuicConnection)                  = nil
+	RemoveServerPacket                          func(pn int64, conn QuicConnection)                                   = nil
+	GetRetransmitServerPacketAfterPNTranslation func(bpf_pn int64, conn QuicConnection) RetransmissionPacketContainer = nil
 
 	// get the largest sent packet number of a connection
 	ConnectionGetLargestSentPacketNumber func(conn QuicConnection) int64 = nil
