@@ -159,6 +159,8 @@ type SendStream interface {
 	// PRIO_PACKS_TAG
 	// SetPriority sets the stream specific priority used for potential adaptive streaming
 	SetPriority(Priority)
+	// RETRANSMISSION_TAG
+	WriteFinConsidering([]byte, bool, bool) (int, error)
 }
 
 // A Connection is a QUIC connection between two peers.
@@ -273,6 +275,10 @@ type Connection interface {
 	// BPF_CC_TAG
 	// RegisterBPFPacket registers a BPF packet that was sent by the BPF program.
 	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
+
+	// // BPF_CC_TAG
+	// // RETRANSMISSION_TAG
+	// GetOrOpenSendStream(StreamID) (SendStream, error)
 }
 
 // RTT_STATS_TAG

@@ -2,6 +2,7 @@ package ackhandler
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
@@ -18,6 +19,8 @@ type sentPacketHistory struct {
 	// BPF_CC_TAG // TODO: clean up whats not needed
 	updateLargestSent func(pn protocol.PacketNumber)
 	largestSent       protocol.PacketNumber
+
+	insertionMutex *sync.Mutex
 }
 
 func newSentPacketHistory() *sentPacketHistory {
@@ -25,6 +28,7 @@ func newSentPacketHistory() *sentPacketHistory {
 		packets:             make([]*packet, 0, 32),
 		highestPacketNumber: protocol.InvalidPacketNumber,
 		largestSent:         protocol.InvalidPacketNumber,
+		insertionMutex:      &sync.Mutex{},
 	}
 }
 
@@ -73,8 +77,6 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 // DEBUG_TAG
 func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 
-	fmt.Println("TEST")
-
 	if p_in.PacketNumber > h.highestPacketNumber {
 		h.highestPacketNumber = p_in.PacketNumber
 	}
@@ -83,6 +85,8 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 	// lock := &sync.Mutex{}
 
 	pn := p_in.PacketNumber
+	// h.insertionMutex.Lock() // TODO: necessary?
+	// defer h.insertionMutex.Unlock()
 	for i := 0; i <= len(h.packets); i++ {
 		var p *packet
 		if i == len(h.packets) {
@@ -102,13 +106,13 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 				h.highestPacketNumber = pn
 			}
 
-			fmt.Println("BPF packet inserted at position", i, "with history of length", len(h.packets))
+			// fmt.Println("BPF packet inserted at position", i, "with history of length", len(h.packets))
 			return
 
 		}
 		// }(p, i, lock) // TODONOW: use go routine with lock?
 	}
-	fmt.Println("This should not happen")
+	panic("This should not happen (BPF packet insertion failed)")
 }
 
 // TODO: clean up this mess

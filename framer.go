@@ -2,6 +2,7 @@ package quic
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/ackhandler"
@@ -108,6 +109,7 @@ func (f *framerI) AppendControlFrames(frames []ackhandler.Frame, maxLen protocol
 func (f *framerI) AddActiveStream(id protocol.StreamID) {
 	f.mutex.Lock()
 	if _, ok := f.activeStreams[id]; !ok {
+		fmt.Println("added new active stream with id", id)
 		f.streamQueue.PushBack(id)
 		f.activeStreams[id] = struct{}{}
 	}

@@ -268,14 +268,9 @@ func (h *sentPacketHandler) packetsInFlight() int {
 	return packetsInFlight
 }
 
-// DEBUG_TAG
-type dummy struct{}
-
-func (*dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
-func (*dummy) OnLost(f wire.Frame)  { fmt.Println("OnLost") }
-
 // BPF_CC_TAG
-func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
+func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF,
+	handlerLookup map[protocol.StreamID]FrameHandler) {
 
 	// DEBUG_TAG
 	// TODONOW: all the correct values
@@ -304,11 +299,15 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 			Fin:            ps_sf.Fin,
 			DataLenPresent: ps_sf.DataLenPresent,
 		}
-		dummy := &dummy{}
-		streamFramesWithHandler = append(streamFramesWithHandler, StreamFrame{
-			Frame:   sf,
-			Handler: dummy,
-		})
+
+		// ps_sf := sf.(packet_setting.StreamFrame)
+		// sf_with_handler := s.AddAckHandlerToStreamFrame(ps_sf)
+
+		streamFramesWithHandler = append(streamFramesWithHandler,
+			StreamFrame{
+				Frame:   sf,
+				Handler: handlerLookup[sf.StreamID], //send_stream.GetAckHandler(),
+			})
 	}
 
 	h.bytesSent += size
@@ -326,11 +325,18 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 	isAckEliciting := len(streamFrames) > 0 || len(frames) > 0
 
 	if isAckEliciting {
-		pnSpace.lastAckElicitingPacketTime = t
-		h.bytesInFlight += size
-		if h.numProbesToSend > 0 {
-			h.numProbesToSend--
+
+		last_t := t
+		if t.Before(pnSpace.lastAckElicitingPacketTime) {
+			last_t = pnSpace.lastAckElicitingPacketTime
 		}
+		pnSpace.lastAckElicitingPacketTime = last_t
+		h.bytesInFlight += size
+
+		// TODO: This causes a panic for "negative bytes_in_flight"
+		// if h.numProbesToSend > 0 { // TODO: bpf packets not counting as probes?
+		// 	h.numProbesToSend--
+		// }
 	} else {
 		panic("BPF packets should always be ack-eliciting")
 	}
@@ -356,11 +362,13 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 	p.IsPathMTUProbePacket = isPathMTUProbePacket
 	p.includedInBytesInFlight = true
 
+	// go func() {
 	pnSpace.history.SentBPFPacket_test(p)
 	if h.tracer != nil && h.tracer.UpdatedMetrics != nil {
 		h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
 	}
 	h.setLossDetectionTimer()
+	// }()
 
 	// // // TEMPORARY_TAG
 	// // Tmp = *h
@@ -463,9 +471,11 @@ func (h *sentPacketHandler) SentPacket(
 	if h.tracer != nil && h.tracer.UpdatedMetrics != nil {
 		h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
 	}
+
+	fmt.Println("CongestionWindow:", h.congestion.GetCongestionWindow(), "BytesInFlight:", h.bytesInFlight, "PacketsInFlight:", h.packetsInFlight())
 	h.setLossDetectionTimer()
 }
-
+ 
 func (h *sentPacketHandler) getPacketNumberSpace(encLevel protocol.EncryptionLevel) *packetNumberSpace {
 	switch encLevel {
 	case protocol.EncryptionInitial:

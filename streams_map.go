@@ -64,6 +64,25 @@ type streamsMap struct {
 
 var _ streamManager = &streamsMap{}
 
+// BPF_CC_TAG
+// RETRANSMISSION_TAG
+func (m *streamsMap) GetSender() *streamSender {
+	return &m.sender
+}
+
+// BPF_CC_TAG
+// RETRANSMISSION_TAG
+func (m *streamsMap) GetNewFlowController() *func(protocol.StreamID) flowcontrol.StreamFlowController {
+	return &m.newFlowController
+}
+
+// BPF_CC_TAG
+// RETRANSMISSION_TAG
+func (m *streamsMap) AddToStreams(id protocol.StreamID, str SendStream) {
+	m.outgoingUniStreams.streams[id.StreamNum()] = str.(sendStreamI)
+	m.outgoingUniStreams.nextStream = id.StreamNum() + 1
+}
+
 func newStreamsMap(
 	sender streamSender,
 	newFlowController func(protocol.StreamID) flowcontrol.StreamFlowController,

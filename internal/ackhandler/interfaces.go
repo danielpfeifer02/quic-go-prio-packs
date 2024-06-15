@@ -42,7 +42,7 @@ type SentPacketHandler interface {
 	SetHighestSentPacketNumber(protocol.PacketNumber)
 
 	// BPF_CC_TAG
-	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
+	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF, map[protocol.StreamID]FrameHandler)
 	SetPeerIsSendServer(bool)
 	SetConnection(packet_setting.QuicConnection)
 }

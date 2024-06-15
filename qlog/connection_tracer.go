@@ -355,6 +355,7 @@ func (t *connectionTracer) UpdatedMetrics(rttStats *utils.RTTStats, cwnd, bytesI
 		Current: m,
 	})
 	t.lastMetrics = m
+
 }
 
 func (t *connectionTracer) AcknowledgedPacket(protocol.EncryptionLevel, protocol.PacketNumber) {}

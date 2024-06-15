@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -62,6 +63,12 @@ type streamManager interface {
 
 	// PRIO_PACKS_TAG
 	GetPriority(StreamID) Priority
+
+	// BPF_CC_TAG
+	// RETRANSMISSION_TAG
+	GetSender() *streamSender
+	GetNewFlowController() *func(protocol.StreamID) flowcontrol.StreamFlowController
+	AddToStreams(protocol.StreamID, SendStream)
 }
 
 type cryptoStreamHandler interface {
@@ -363,6 +370,12 @@ func (s *connection) GetDestConnID(stream Stream) protocol.ConnectionID {
 	return s.connIDManager.Get(s.GetPriority(stream.StreamID()))
 }
 
+// // BPF_CC_TAG
+// // RETRANSMISSION_TAG
+// func (s *connection) GetOrOpenSendStream(id protocol.StreamID) (SendStream, error) {
+// 	return s.streamsMap.GetOrOpenSendStream(id)
+// }
+
 // RTT_STATS_TAG
 func (s *connection) GetRTTStats() RTTStatistics {
 	stats := s.rttStats
@@ -644,7 +657,7 @@ runLoop:
 			}
 		}
 
-		fmt.Println("Check for timeout")
+		// fmt.Println("Check for timeout")
 		now := time.Now()
 		if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
 			// This could cause packets to be retransmitted.
@@ -921,6 +934,19 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 	p.buffer.MaybeRelease()
 	return processed
 }
+
+// // BPF_CC_TAG
+// // RETRANSMISSION_TAG
+// func (s *connection) AddAckHandlerToStreamFrame(stream_frame *wire.StreamFrame) ackhandler.StreamFrame {
+// 	send_stream, err := s.streamsMap.GetOrOpenSendStream(stream_frame.StreamID)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return ackhandler.StreamFrame{
+// 		Frame:   stream_frame,
+// 		Handler: (*sendStreamAckHandler)(send_stream.(*sendStream)),
+// 	}
+// }
 
 // BPF_CC_TAG
 // CACHING_TAG
@@ -2604,6 +2630,7 @@ func (s *connection) onHasConnectionWindowUpdate() {
 }
 
 func (s *connection) onHasStreamData(id protocol.StreamID) {
+	fmt.Println("id", id, "has data")
 	s.framer.AddActiveStream(id)
 	s.scheduleSending()
 }
@@ -2715,9 +2742,21 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	prc.Frames = make([]packet_setting.GeneralFrame, 0)
 	prc.StreamFrames = stream_frames
 
+	handler_lut := make(map[protocol.StreamID]ackhandler.FrameHandler)
+	for _, sf := range stream_frames {
+		// send_stream, err := s.streamsMap.GetOrOpenSendStream(sf.StreamID)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		handler := &dummy{
+			conn: s,
+		} //(*sendStreamAckHandler)(send_stream.(*sendStream))
+		handler_lut[sf.StreamID] = handler
+	}
+
 	// fmt.Println("Connection RegisterBPFPacket\n\n\n")
 	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
-	s.sentPacketHandler.RegisterBPFPacket(prc)
+	s.sentPacketHandler.RegisterBPFPacket(prc, handler_lut)
 
 	// DEBUG_TAG
 	// fmt.Println("Check for timeout")
@@ -2729,4 +2768,59 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	// 		s.closeLocal(err)
 	// 	}
 	// }
+}
+
+// DEBUG_TAG
+type dummy struct {
+	conn *connection
+}
+
+func (d *dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
+func (d *dummy) OnLost(f wire.Frame) {
+	fmt.Println("OnLost")
+	// fmt.Println("TURN ON ONLOST AGAIN")
+	// return // TODO: remove
+	// str, err := d.conn.OpenUniStreamWithPriority(priority_setting.HighPriority)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	sf := f.(*wire.StreamFrame)
+	id := sf.StreamID
+	sender := d.conn.streamsMap.GetSender()
+	nfc := d.conn.streamsMap.GetNewFlowController()
+
+	// s := &stream{sender: sender}
+	// senderForSendStream := &uniStreamSender{
+	// 	streamSender: sender,
+	// 	onStreamCompletedImpl: func() {
+	// 		s.completedMutex.Lock()
+	// 		s.sendStreamCompleted = true
+	// 		s.checkIfCompleted()
+	// 		s.completedMutex.Unlock()
+	// 	},
+	// }
+	str := newSendStream(id, *sender, (*nfc)(id))
+	d.conn.streamsMap.AddToStreams(protocol.StreamID(id), str)
+	fmt.Println("Manually created stream with id", id)
+
+	data := make([]byte, sf.DataLen())
+	copy(data, sf.Data)
+
+	fmt.Println(hex.Dump(data))
+	// return
+	// str.Write([]byte{0x69, 0x69, 0x69, 0x69})
+	if true {
+		str.Write([]byte{0x69, 0x69, 0x69, 0x69})
+
+		written, err := str.WriteFinConsidering(data, true, sf.Fin) // TODO: not right i believe - even if fin frame is retransmitted it could be further broken down?
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Written", written, "bytes")
+		// panic("debug")
+		// str.Close()
+	} else {
+		d.conn.SendDatagram(data)
+	}
 }

@@ -86,6 +86,11 @@ func (s *sendStream) StreamID() protocol.StreamID {
 }
 
 func (s *sendStream) Write(p []byte) (int, error) {
+	return s.WriteFinConsidering(p, false, false)
+}
+
+// RETRANSMISSION_TAG
+func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, error) {
 	// Concurrent use of Write is not permitted (and doesn't make any sense),
 	// but sometimes people do it anyway.
 	// Make sure that we only execute one call at any given time to avoid hard to debug failures.
@@ -129,6 +134,13 @@ func (s *sendStream) Write(p []byte) (int, error) {
 		if s.canBufferStreamFrame() && len(s.dataForWriting) > 0 {
 			if s.nextFrame == nil {
 				f := wire.GetStreamFrame()
+
+				// RETRANSMISSION_TAG
+				// TODO: correct to only have here?
+				if forceFin {
+					f.Fin = fin
+				}
+
 				f.Offset = s.writeOffset
 				f.StreamID = s.streamID
 				f.DataLenPresent = true
