@@ -664,6 +664,9 @@ func (p *packetPacker) maybeGetAppDataPacketFor0RTT(sealer sealer, maxPacketSize
 
 func (p *packetPacker) maybeGetShortHeaderPacket(sealer handshake.ShortHeaderSealer, hdrLen protocol.ByteCount, maxPacketSize protocol.ByteCount, onlyAck, ackAllowed bool, v protocol.Version) payload {
 	maxPayloadSize := maxPacketSize - hdrLen - protocol.ByteCount(sealer.Overhead())
+	if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR && p.framer.HasData() {
+		fmt.Println("BBBB shpacket")
+	}
 	return p.maybeGetAppDataPacket(maxPayloadSize, onlyAck, ackAllowed, v)
 }
 
@@ -689,6 +692,8 @@ func (p *packetPacker) maybeGetAppDataPacket(maxPayloadSize protocol.ByteCount, 
 	}
 	return pl
 }
+
+var lastWasRetransmit = false // TODO: have a clearner solution for this!
 
 func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAck, ackAllowed bool, v protocol.Version) payload {
 
@@ -750,9 +755,10 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		return pl
 	}
 
-	if hasRetransmission {
+	if hasRetransmission { //&& !lastWasRetransmit { //TODO lastWasRetransmit is a hacky way for debugging
 		// DEBUG_TAG
 		// fmt.Println("if hasRetransmission {")
+		lastWasRetransmit = true
 		for {
 			remainingLen := maxFrameSize - pl.length
 			if remainingLen < protocol.MinStreamFrameSize {
@@ -774,7 +780,9 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			if _, ok := f.(*wire.StreamFrame); ok {
 				fmt.Println("Retransmission of a stream frame with length ", pl.length, " and data ", f.(*wire.StreamFrame).Data)
 			}
-			return pl
+			if p.connection.LocalAddr().String() == packet_setting.SERVER_ADDR {
+				return pl // TODO: why does this cause non-sending of other data? (without lastWasRetransmit)
+			}
 		}
 	}
 
@@ -799,6 +807,9 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 
 		// STREAM_ONLY_TAG
 		// TODO: can there be more than one stream frame in a packet?
+		if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR {
+			fmt.Println("BBBB conn to client")
+		}
 		pl.streamFrames, lengthAdded = p.framer.AppendStreamFrames(pl.streamFrames, maxFrameSize-pl.length, v)
 		pl.length += lengthAdded
 
@@ -807,7 +818,13 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		if len(pl.streamFrames) > 1 {
 			panic("more than one stream frame in a packet")
 		}
-	}
+
+		lastWasRetransmit = false // TODO: remove
+	} /*else {
+		if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR {
+			fmt.Println(p.connection.RemoteAddr().String(), "has no data (DEBUG)")
+		}
+	} //*/
 
 	// DEBUG_TAG
 	// fmt.Println("Sending packet with length ", pl.length)

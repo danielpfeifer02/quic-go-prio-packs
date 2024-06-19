@@ -2,6 +2,7 @@ package quic
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -86,11 +87,11 @@ func (s *sendStream) StreamID() protocol.StreamID {
 }
 
 func (s *sendStream) Write(p []byte) (int, error) {
-	return s.WriteFinConsidering(p, false, false)
+	return s.WriteFinConsidering(p, false, &wire.StreamFrame{})
 }
 
 // RETRANSMISSION_TAG
-func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, error) {
+func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.StreamFrame) (int, error) {
 	// Concurrent use of Write is not permitted (and doesn't make any sense),
 	// but sometimes people do it anyway.
 	// Make sure that we only execute one call at any given time to avoid hard to debug failures.
@@ -138,7 +139,10 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, err
 				// RETRANSMISSION_TAG
 				// TODO: correct to only have here?
 				if forceFin {
-					f.Fin = fin
+					f.Fin = sf.Fin
+					f.Offset = sf.Offset
+					f.DataLenPresent = sf.DataLenPresent
+					// f.Data = sf.Data
 				}
 
 				f.Offset = s.writeOffset
@@ -147,6 +151,11 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, err
 				f.Data = f.Data[:len(s.dataForWriting)]
 				copy(f.Data, s.dataForWriting)
 				s.nextFrame = f
+
+				// RETRANSMISSION_TAG
+				if forceFin {
+					s.nextFrame = sf
+				}
 			} else {
 				l := len(s.nextFrame.Data)
 				s.nextFrame.Data = s.nextFrame.Data[:l+len(s.dataForWriting)]
@@ -170,6 +179,7 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, err
 				deadlineTimer.Reset(deadline)
 			}
 			if s.dataForWriting == nil || s.cancelWriteErr != nil || s.closeForShutdownErr != nil {
+				fmt.Println("break nil") // TODONO: remove
 				break
 			}
 		}
@@ -181,6 +191,7 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, err
 		}
 		if copied {
 			s.mutex.Lock()
+			fmt.Println("break copied") // TODONO: remove
 			break
 		}
 		if deadline.IsZero() {
@@ -193,6 +204,7 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin, fin bool) (int, err
 			}
 		}
 		s.mutex.Lock()
+		fmt.Println("Not written in one take") // TODONO: remove
 	}
 
 	if bytesWritten == len(p) {
@@ -219,8 +231,10 @@ func (s *sendStream) canBufferStreamFrame() bool {
 func (s *sendStream) popStreamFrame(maxBytes protocol.ByteCount, v protocol.Version) (af ackhandler.StreamFrame, ok, hasMore bool) {
 	s.mutex.Lock()
 	f, hasMoreData := s.popNewOrRetransmittedStreamFrame(maxBytes, v)
+
 	if f != nil {
 		s.numOutstandingFrames++
+		fmt.Println(hex.Dump(f.Data))
 	}
 	s.mutex.Unlock()
 

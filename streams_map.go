@@ -80,7 +80,9 @@ func (m *streamsMap) GetNewFlowController() *func(protocol.StreamID) flowcontrol
 // RETRANSMISSION_TAG
 func (m *streamsMap) AddToStreams(id protocol.StreamID, str SendStream) {
 	m.outgoingUniStreams.streams[id.StreamNum()] = str.(sendStreamI)
-	m.outgoingUniStreams.nextStream = id.StreamNum() + 1
+	old_ns := m.outgoingUniStreams.nextStream
+	tmp := protocol.StreamNum((id-3)/4 + 1) // TODO corresponding streamnum even needed?
+	m.outgoingUniStreams.nextStream = max(old_ns, tmp+1)
 }
 
 func newStreamsMap(

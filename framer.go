@@ -9,6 +9,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils/ringbuffer"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
@@ -37,14 +38,21 @@ type framerI struct {
 	controlFrameMutex sync.Mutex
 	controlFrames     []wire.Frame
 	pathResponses     []*wire.PathResponseFrame
+
+	// RETRANSMISSION_TAG
+	// DEBUG_TAG
+	conn Connection
 }
 
 var _ framer = &framerI{}
 
-func newFramer(streamGetter streamGetter) framer {
+func newFramer(streamGetter streamGetter, conn Connection) framer {
 	return &framerI{
 		streamGetter:  streamGetter,
 		activeStreams: make(map[protocol.StreamID]struct{}),
+		// RETRANSMISSION_TAG
+		// DEBUG_TAG
+		conn: conn,
 	}
 }
 
@@ -112,7 +120,12 @@ func (f *framerI) AddActiveStream(id protocol.StreamID) {
 		fmt.Println("added new active stream with id", id)
 		f.streamQueue.PushBack(id)
 		f.activeStreams[id] = struct{}{}
-	}
+	} /*else if packet_setting.BPF_PACKET_RETRANSMISSION {
+		f.streamQueue.PushBack(id)
+		fmt.Println("BBBB temporary solution", f.streamQueue.Len())
+	}//*/
+
+	fmt.Println("BBBB id", id, "has data", f.streamQueue.Len(), &f)
 	f.mutex.Unlock()
 }
 
@@ -123,6 +136,15 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 	// pop STREAM frames, until less than MinStreamFrameSize bytes are left in the packet
 	numActiveStreams := f.streamQueue.Len()
 	// for i := 0; i < numActiveStreams; i++ {
+
+	if tc := f.conn.RemoteAddr().String(); tc != packet_setting.SERVER_ADDR {
+		if numActiveStreams > 0 {
+			fmt.Println(tc, "#activeStreams > 0 (DEBUG)")
+		} else {
+			fmt.Println(tc, "no active streams (DEBUG)")
+		}
+		// fmt.Println("BBBB call popStreamFrame", &f, numActiveStreams) // TODO: remove all this
+	}
 
 	// SINGLE_STREAM_TAG
 	sstr_limit := min(numActiveStreams, 1)
@@ -144,6 +166,7 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 		// Therefore, we can pretend to have more bytes available when popping
 		// the STREAM frame (which will always have the DataLen set).
 		remainingLen += quicvarint.Len(uint64(remainingLen))
+
 		frame, ok, hasMoreData := str.popStreamFrame(remainingLen, v)
 		if hasMoreData { // put the stream back in the queue (at the end)
 			f.streamQueue.PushBack(id)
@@ -156,6 +179,7 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 		if !ok {
 			continue
 		}
+		// fmt.Println("this should happen", frame.Frame.StreamID, len(frame.Frame.Data), frame.Frame.Data[1])
 		frames = append(frames, frame)
 		length += frame.Frame.Length(v)
 	}

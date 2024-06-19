@@ -472,10 +472,10 @@ func (h *sentPacketHandler) SentPacket(
 		h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
 	}
 
-	fmt.Println("CongestionWindow:", h.congestion.GetCongestionWindow(), "BytesInFlight:", h.bytesInFlight, "PacketsInFlight:", h.packetsInFlight())
+	// fmt.Println("CongestionWindow:", h.congestion.GetCongestionWindow(), "BytesInFlight:", h.bytesInFlight, "PacketsInFlight:", h.packetsInFlight())
 	h.setLossDetectionTimer()
 }
- 
+
 func (h *sentPacketHandler) getPacketNumberSpace(encLevel protocol.EncryptionLevel) *packetNumberSpace {
 	switch encLevel {
 	case protocol.EncryptionInitial:
@@ -590,6 +590,14 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 		if p.EncryptionLevel == protocol.Encryption1RTT {
 			acked1RTTPacket = true
 		}
+
+		if packet_setting.BPF_PACKET_REGISTRATION &&
+			!h.peerIsSendServer &&
+			encLevel == protocol.Encryption1RTT {
+			// TODONOW: only temporary until i figure out how to handle bytes in flight for BPF packets
+			h.bytesInFlight += p.Length
+		}
+
 		h.removeFromBytesInFlight(p)
 		putPacket(p)
 	}

@@ -97,7 +97,7 @@ var (
 	RELAY_ADDR     string = "192.168.11.2:4242"
 	RELAY_OOB_ADDR string = "192.168.11.2:12345"
 	IS_CLIENT      bool   = false
-	EXCHANGE_PRIOS bool   = true
+	EXCHANGE_PRIOS bool   = false // TODO: what's the smarter default value?
 
 	RangeTranslationMap             map[Range]Range = make(map[Range]Range)
 	IndividualAckTranslationMap     map[int64]int64 = make(map[int64]int64)
@@ -106,5 +106,9 @@ var (
 	// BPF_CC_TAG
 	BPF_PACKET_REGISTRATION bool = false
 
+	BPF_PACKET_RETRANSMISSION bool = true
+
 	ReceivedPacketAtTimestampHandler func(pn, ts int64, conn QuicConnection) = nil
+
+	RetransmissionStreamMap map[protocol.StreamID]interface{} = make(map[protocol.StreamID]interface{})
 )

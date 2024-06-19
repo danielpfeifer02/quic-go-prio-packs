@@ -536,7 +536,10 @@ func (s *connection) preSetup() {
 		uint64(s.config.MaxIncomingUniStreams),
 		s.perspective,
 	)
-	s.framer = newFramer(s.streamsMap)
+
+	// RETRANSMISSION_TAG
+	// DEBUG_TAG
+	s.framer = newFramer(s.streamsMap, s)
 	s.receivedPackets = make(chan receivedPacket, protocol.MaxConnUnprocessedPackets)
 	s.closeChan = make(chan closeError, 1)
 	s.sendingScheduled = make(chan struct{}, 1)
@@ -2630,8 +2633,11 @@ func (s *connection) onHasConnectionWindowUpdate() {
 }
 
 func (s *connection) onHasStreamData(id protocol.StreamID) {
-	fmt.Println("id", id, "has data")
 	s.framer.AddActiveStream(id)
+	tmp := s.packer.(*packetPacker).framer.(framer)
+	if !reflect.DeepEqual(tmp, s.framer) {
+		panic("Framer not the same") // TODONOW: remove
+	}
 	s.scheduleSending()
 }
 
@@ -2753,6 +2759,9 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 		} //(*sendStreamAckHandler)(send_stream.(*sendStream))
 		handler_lut[sf.StreamID] = handler
 	}
+	if cc == nil {
+		cc = s
+	}
 
 	// fmt.Println("Connection RegisterBPFPacket\n\n\n")
 	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
@@ -2778,7 +2787,7 @@ type dummy struct {
 func (d *dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
 func (d *dummy) OnLost(f wire.Frame) {
 	fmt.Println("OnLost")
-	// fmt.Println("TURN ON ONLOST AGAIN")
+	// fmt.Println("TURN ON ONLOST AGAIN\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 	// return // TODO: remove
 	// str, err := d.conn.OpenUniStreamWithPriority(priority_setting.HighPriority)
 	// if err != nil {
@@ -2787,10 +2796,19 @@ func (d *dummy) OnLost(f wire.Frame) {
 
 	sf := f.(*wire.StreamFrame)
 	id := sf.StreamID
-	sender := d.conn.streamsMap.GetSender()
-	nfc := d.conn.streamsMap.GetNewFlowController()
+	sender := cc.streamsMap.GetSender()
+	nfc := cc.streamsMap.GetNewFlowController()
 
-	// s := &stream{sender: sender}
+	if id&0x3 != 0x3 {
+		panic("Only server initialized and uni directional streams are supported")
+	}
+
+	if sf.DataLen() == 0 {
+		fmt.Println("No data in stream frame") // TODO: why happening?
+		return
+	}
+
+	// s := &stream{sender: sender
 	// senderForSendStream := &uniStreamSender{
 	// 	streamSender: sender,
 	// 	onStreamCompletedImpl: func() {
@@ -2800,27 +2818,112 @@ func (d *dummy) OnLost(f wire.Frame) {
 	// 		s.completedMutex.Unlock()
 	// 	},
 	// }
-	str := newSendStream(id, *sender, (*nfc)(id))
-	d.conn.streamsMap.AddToStreams(protocol.StreamID(id), str)
-	fmt.Println("Manually created stream with id", id)
 
 	data := make([]byte, sf.DataLen())
 	copy(data, sf.Data)
 
-	fmt.Println(hex.Dump(data))
-	// return
-	// str.Write([]byte{0x69, 0x69, 0x69, 0x69})
-	if true {
-		str.Write([]byte{0x69, 0x69, 0x69, 0x69})
+	var str *sendStream
 
-		written, err := str.WriteFinConsidering(data, true, sf.Fin) // TODO: not right i believe - even if fin frame is retransmitted it could be further broken down?
+	if true {
+		if _, ok := packet_setting.RetransmissionStreamMap[id]; ok {
+			// if cast, ok := already_str.(*sendStream); ok {
+			// 	str = cast
+			// } else {
+			// 	panic("Not a send stream")
+			// }
+			// fmt.Println("Already created stream with id", id)
+			already_str, err := d.conn.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
+			if err != nil {
+				panic(err)
+			}
+			str = already_str.(*sendStream) // TODO: write on closed stream????
+
+		} else {
+			// TODO: all good with id / num of stream?
+			str = newSendStream(id, *sender, (*nfc)(id))
+			d.conn.streamsMap.AddToStreams(protocol.StreamID(id), str)
+
+			fmt.Println("Manually created stream with id", id)
+			// packet_setting.RetransmissionStreamMap[id] = str
+		}
+
+		// str.nextFrame = sf
+		// d.conn.onHasStreamData(protocol.StreamID(id))
+		dumdum := sf.Data // []byte{0x69, 0x69, 0x69, 0x69}
+		w, e1 := str.Write(dumdum)
+		if e1 != nil {
+			panic(e1)
+		}
+		if w != len(dumdum) {
+			panic("Not all bytes writtenv 69")
+		}
+
+		// if sf.Fin {
+		err := str.Close() // TODO: does this also remove the stream from the active streams?
+		if err != nil {
+			panic(err)
+		}
+		// }
+
+		fmt.Println(hex.Dump(data))
+		// TODO: based on this and wireshark the packets still dont seem to be retransmitted
+		// TODO: correctly :(
+
+	} else {
+
+		fmt.Println("BBBB onLost", &cc.framer)
+
+		str2, err := cc.OpenUniStreamWithPriority(priority_setting.HighPriority) //d.conn.
+		if err != nil {
+			panic(err)
+		}
+		damdam := []byte{0x42, 0x42, 0x42, 0x42}
+		w, e2 := str2.Write(damdam)
+		if e2 != nil {
+			panic(e2)
+		}
+		if w != len(damdam) {
+			panic("Not all bytes written 42")
+		}
+
+		ctr++
+		err = str2.Close()
+		if err != nil {
+			panic(err)
+		}
+		// TODO: now i get an error for inconsistent final offset which makes sense again because the client already
+		// TODO: received the stream with the id for a frame and now receives a second time this stream
+
+		// TODO: if i make it conditional that only the server sends payloads split into separate frames
+		// TODO: I might be able to avoid the problem that an ealry "return pl" causes in packet_packer.go
+
+		// TODO: multiple questsions popped up:
+		// TODO: 1. how can i make sure all the streams that are opened are closed once they are not needed anymore?
+		// TODO: 2. how to handle the errors that come up based on the final size of the stream?
+		// TODO:    (for now its hacky with a "turnofffornow" flag - remove that one!)
+	}
+	// cc.sendPackets(time.Now())
+
+	// fmt.Println(hex.Dump(data))
+	fmt.Println("debugmask", sf.StreamID, ctr)
+
+	if false {
+		// str.WriteFinConsidering([]byte{0x69, 0x69, 0x69, 0x69}, false, sf)
+
+		written, err := str.WriteFinConsidering(data, true, sf) // TODO: not right i believe - even if fin frame is retransmitted it could be further broken down?
 		if err != nil {
 			panic(err)
 		}
 		fmt.Println("Written", written, "bytes")
+
 		// panic("debug")
-		// str.Close()
+		// if sf.Fin {
+		// 	str.Close()
+		// }
 	} else {
-		d.conn.SendDatagram(data)
+		// d.conn.SendDatagram(data)
 	}
 }
+
+var cc *connection = nil
+var ctr = 0

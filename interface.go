@@ -10,6 +10,7 @@ import (
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/handshake"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
@@ -160,7 +161,7 @@ type SendStream interface {
 	// SetPriority sets the stream specific priority used for potential adaptive streaming
 	SetPriority(Priority)
 	// RETRANSMISSION_TAG
-	WriteFinConsidering([]byte, bool, bool) (int, error)
+	WriteFinConsidering([]byte, bool, *wire.StreamFrame) (int, error)
 }
 
 // A Connection is a QUIC connection between two peers.
