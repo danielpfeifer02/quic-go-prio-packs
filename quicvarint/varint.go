@@ -70,24 +70,30 @@ func Read(r io.ByteReader) (uint64, error) {
 	return uint64(b8) + uint64(b7)<<8 + uint64(b6)<<16 + uint64(b5)<<24 + uint64(b4)<<32 + uint64(b3)<<40 + uint64(b2)<<48 + uint64(b1)<<56, nil
 }
 
-// Append appends i in the QUIC varint format.
 func Append(b []byte, i uint64) []byte {
-	if i <= maxVarInt1 {
+	return AppendWithMinSize(b, i, 0)
+}
+
+// BPF_TAG
+// STREAM_ID_TAG
+// Append appends i in the QUIC varint format.
+func AppendWithMinSize(b []byte, i uint64, minSize uint8) []byte {
+	if i <= maxVarInt1 && 1 >= minSize {
 		return append(b, uint8(i))
 	}
-	if i <= maxVarInt2 {
+	if i <= maxVarInt2 && 2 >= minSize {
 		return append(b, []byte{uint8(i>>8) | 0x40, uint8(i)}...)
 	}
-	if i <= maxVarInt4 {
+	if i <= maxVarInt4 && 4 >= minSize {
 		return append(b, []byte{uint8(i>>24) | 0x80, uint8(i >> 16), uint8(i >> 8), uint8(i)}...)
 	}
-	if i <= maxVarInt8 {
+	if i <= maxVarInt8 && minSize == 8 {
 		return append(b, []byte{
 			uint8(i>>56) | 0xc0, uint8(i >> 48), uint8(i >> 40), uint8(i >> 32),
 			uint8(i >> 24), uint8(i >> 16), uint8(i >> 8), uint8(i),
 		}...)
 	}
-	panic(fmt.Sprintf("%#x doesn't fit into 62 bits", i))
+	panic(fmt.Sprintf("%#x doesn't fit into 62 bits or minimal size > 8", i))
 }
 
 // AppendWithLen append i in the QUIC varint format with the desired length.

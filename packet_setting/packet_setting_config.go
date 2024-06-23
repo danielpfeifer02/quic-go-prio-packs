@@ -1,6 +1,7 @@
 package packet_setting
 
 import (
+	"fmt"
 	"net"
 	"sync"
 
@@ -97,7 +98,9 @@ var (
 	RELAY_ADDR     string = "192.168.11.2:4242"
 	RELAY_OOB_ADDR string = "192.168.11.2:12345"
 	IS_CLIENT      bool   = false
+	IS_RELAY       bool   = false
 	EXCHANGE_PRIOS bool   = false // TODO: what's the smarter default value?
+	BPF_TURNED_ON  bool   = true
 
 	RangeTranslationMap             map[Range]Range = make(map[Range]Range)
 	IndividualAckTranslationMap     map[int64]int64 = make(map[int64]int64)
@@ -111,4 +114,12 @@ var (
 	ReceivedPacketAtTimestampHandler func(pn, ts int64, conn QuicConnection) = nil
 
 	RetransmissionStreamMap map[protocol.StreamID]interface{} = make(map[protocol.StreamID]interface{})
+
+	DEBUG_PRINT bool = false
 )
+
+func DebugPrintln(s ...any) {
+	if DEBUG_PRINT {
+		fmt.Println(s)
+	}
+}
