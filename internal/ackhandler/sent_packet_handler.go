@@ -919,7 +919,7 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 func (h *sentPacketHandler) OnLossDetectionTimeout() error {
 
 	// DEBUG_TAG
-	fmt.Println("OnLossDetectionTimeout")
+	packet_setting.DebugPrintln("OnLossDetectionTimeout")
 
 	defer h.setLossDetectionTimer()
 	earliestLossTime, encLevel := h.getLossTimeAndSpace()
@@ -988,7 +988,7 @@ func (h *sentPacketHandler) OnLossDetectionTimeout() error {
 		// h.getPacketNumberSpace(protocol.Encryption1RTT).history.SkippedPacket(pn)
 
 		// DEBUG_TAG
-		fmt.Println("Set to sending PTO packet")
+		packet_setting.DebugPrintln("Set to sending PTO packet")
 		h.ptoMode = SendPTOAppData
 	default:
 		return fmt.Errorf("PTO timer in unexpected encryption level: %s", encLevel)
@@ -1099,7 +1099,7 @@ func (h *sentPacketHandler) QueueProbePacket(encLevel protocol.EncryptionLevel) 
 		return false
 	}
 	// DEBUG_TAG
-	fmt.Println("QueueProbePacket")
+	packet_setting.DebugPrintln("QueueProbePacket")
 	h.queueFramesForRetransmission(p)
 	// TODO: don't declare the packet lost here.
 	// Keep track of acknowledged frames instead.
@@ -1123,7 +1123,7 @@ func (h *sentPacketHandler) queueFramesForRetransmission(p *packet) {
 	}
 	for _, f := range p.StreamFrames {
 		// DEBUG_TAG
-		fmt.Println("queueFramesForRetransmission")
+		packet_setting.DebugPrintln("queueFramesForRetransmission")
 		if f.Handler != nil {
 			f.Handler.OnLost(f.Frame)
 		}

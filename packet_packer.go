@@ -665,7 +665,7 @@ func (p *packetPacker) maybeGetAppDataPacketFor0RTT(sealer sealer, maxPacketSize
 func (p *packetPacker) maybeGetShortHeaderPacket(sealer handshake.ShortHeaderSealer, hdrLen protocol.ByteCount, maxPacketSize protocol.ByteCount, onlyAck, ackAllowed bool, v protocol.Version) payload {
 	maxPayloadSize := maxPacketSize - hdrLen - protocol.ByteCount(sealer.Overhead())
 	if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR && p.framer.HasData() {
-		fmt.Println("BBBB shpacket")
+		packet_setting.DebugPrintln("BBBB shpacket")
 	}
 	return p.maybeGetAppDataPacket(maxPayloadSize, onlyAck, ackAllowed, v)
 }
@@ -680,7 +680,7 @@ func (p *packetPacker) maybeGetAppDataPacket(maxPayloadSize protocol.ByteCount, 
 		}
 		// the packet only contains an ACK
 		if p.numNonAckElicitingAcks >= protocol.MaxNonAckElicitingAcks {
-			ping := &wire.PingFrame{}
+			ping := &wire.PingFrame{} // TODONOW: pings correctly handled?
 			pl.frames = append(pl.frames, ackhandler.Frame{Frame: ping})
 			pl.length += ping.Length(v)
 			p.numNonAckElicitingAcks = 0
@@ -808,7 +808,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		// STREAM_ONLY_TAG
 		// TODO: can there be more than one stream frame in a packet?
 		if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR {
-			fmt.Println("BBBB conn to client")
+			packet_setting.DebugPrintln("BBBB conn to client")
 		}
 		pl.streamFrames, lengthAdded = p.framer.AppendStreamFrames(pl.streamFrames, maxFrameSize-pl.length, v)
 		pl.length += lengthAdded
@@ -1121,9 +1121,24 @@ func (p *packetPacker) appendPacketPayload(raw []byte, pl payload, paddingLen pr
 		}
 	}
 
+	// DEBUG_TAG
+	// if packet_setting.BPF_TURNED_ON {
+	// 	if len(pl.frames) > 0 && len(pl.streamFrames) > 0 ||
+	// 		len(pl.streamFrames) > 1 {
+	// 		panic(">0")
+	// 	} else {
+	// 		fmt.Println("All good")
+	// 	}
+	// }
+
+	// BPF_TAG
+	// STREAM_ID_TAG
+	// TODO: since the stream id lenght is fixed for now quic-go thinks there is a bug / inconsistency
+	// if !packet_setting.BPF_TURNED_ON { // TODO: how to handle this?
 	if payloadSize := protocol.ByteCount(len(raw)-payloadOffset) - paddingLen; payloadSize != pl.length {
 		return nil, fmt.Errorf("PacketPacker BUG: payload size inconsistent (expected %d, got %d bytes)", pl.length, payloadSize)
 	}
+	// }
 	return raw, nil
 }
 

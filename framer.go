@@ -2,7 +2,6 @@ package quic
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/ackhandler"
@@ -117,7 +116,7 @@ func (f *framerI) AppendControlFrames(frames []ackhandler.Frame, maxLen protocol
 func (f *framerI) AddActiveStream(id protocol.StreamID) {
 	f.mutex.Lock()
 	if _, ok := f.activeStreams[id]; !ok {
-		fmt.Println("added new active stream with id", id)
+		packet_setting.DebugPrintln("added new active stream with id", id)
 		f.streamQueue.PushBack(id)
 		f.activeStreams[id] = struct{}{}
 	} /*else if packet_setting.BPF_PACKET_RETRANSMISSION {
@@ -125,7 +124,7 @@ func (f *framerI) AddActiveStream(id protocol.StreamID) {
 		fmt.Println("BBBB temporary solution", f.streamQueue.Len())
 	}//*/
 
-	fmt.Println("BBBB id", id, "has data", f.streamQueue.Len(), &f)
+	packet_setting.DebugPrintln("BBBB id", id, "has data", f.streamQueue.Len(), &f)
 	f.mutex.Unlock()
 }
 
@@ -139,9 +138,9 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 
 	if tc := f.conn.RemoteAddr().String(); tc != packet_setting.SERVER_ADDR {
 		if numActiveStreams > 0 {
-			fmt.Println(tc, "#activeStreams > 0 (DEBUG)")
+			packet_setting.DebugPrintln(tc, "#activeStreams > 0 (DEBUG)")
 		} else {
-			fmt.Println(tc, "no active streams (DEBUG)")
+			packet_setting.DebugPrintln(tc, "no active streams (DEBUG)")
 		}
 		// fmt.Println("BBBB call popStreamFrame", &f, numActiveStreams) // TODO: remove all this
 	}

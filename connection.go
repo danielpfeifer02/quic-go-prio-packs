@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -970,35 +971,41 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	// // print bytes in hex format
 	// fmt.Println(hex.Dump(data))
 
-	for len(data) > 0 {
-		l, frame, err := throwaway_parser.ParseNext(data, protocol.Encryption1RTT, s.version)
-		if err != nil {
-			// if strings.Contains(err.Error(), "unknown frame type") {
-			// 	return frames, stream_frames, errors.ErrUnsupported
-			// }
-			panic(err)
-		}
-		data = data[l:]
-
-		if frame == nil {
-			fmt.Println("Frame is nil")
-			break
-		}
-
-		if stream_frame, ok := frame.(*wire.StreamFrame); ok {
-			ps_sf := packet_setting.StreamFrame{
-				StreamID:       stream_frame.StreamID,
-				Offset:         stream_frame.Offset,
-				Data:           stream_frame.Data,
-				Fin:            stream_frame.Fin,
-				DataLenPresent: stream_frame.DataLenPresent,
-			}
-			stream_frames = append(stream_frames, ps_sf)
-		} else {
-			// frames = append(frames, frame)
-			panic("For now only stream frames are supported")
-		}
+	// for len(data) > 0 { // Only one frame per packet. This is a simplification for now
+	l, frame, err := throwaway_parser.ParseNext(data, protocol.Encryption1RTT, s.version)
+	if err != nil {
+		// if strings.Contains(err.Error(), "unknown frame type") {
+		// 	return frames, stream_frames, errors.ErrUnsupported
+		// }
+		panic(err)
 	}
+	data = data[l:]
+
+	if frame == nil {
+		fmt.Println("Frame is nil")
+		return frames, stream_frames, nil // TODO: how to handle correctly
+	}
+
+	if stream_frame, ok := frame.(*wire.StreamFrame); ok {
+		ps_sf := packet_setting.StreamFrame{
+			StreamID:       stream_frame.StreamID,
+			Offset:         stream_frame.Offset,
+			Data:           stream_frame.Data,
+			Fin:            stream_frame.Fin,
+			DataLenPresent: stream_frame.DataLenPresent,
+		}
+		stream_frames = append(stream_frames, ps_sf)
+	} else if _, ok := frame.(*wire.DatagramFrame); ok {
+		return nil, nil, errors.New("Datagram")
+	} else {
+		// frames = append(frames, frame)
+		fmt.Println(reflect.TypeOf(frame))
+		panic("For now only stream frames are supported")
+	}
+	if len(data) > 0 {
+		panic("Not all data was consumed")
+	}
+	// }
 	return frames, stream_frames, nil
 }
 
@@ -2739,6 +2746,10 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	// fmt.Println("Parse pn", prc.PacketNumber)
 	_, stream_frames, err := s.parseBPFSavedRawData(prc.RawData)
 	if err != nil {
+		if strings.Contains(err.Error(), "Datagram") {
+			fmt.Println("Ignoring DatagramFrame for registration")
+			return // We ignore datagram packets here since we cannot rule them out earlier (// TODO: we probably could rule them out in the BPF code)
+		}
 		panic(err)
 	}
 	if len(stream_frames) == 0 {
@@ -2786,7 +2797,7 @@ type dummy struct {
 
 func (d *dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
 func (d *dummy) OnLost(f wire.Frame) {
-	fmt.Println("OnLost")
+	packet_setting.DebugPrintln("OnLost")
 	// fmt.Println("TURN ON ONLOST AGAIN\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 	// return // TODO: remove
 	// str, err := d.conn.OpenUniStreamWithPriority(priority_setting.HighPriority)
@@ -2849,7 +2860,7 @@ func (d *dummy) OnLost(f wire.Frame) {
 
 		// str.nextFrame = sf
 		// d.conn.onHasStreamData(protocol.StreamID(id))
-		dumdum := sf.Data // []byte{0x69, 0x69, 0x69, 0x69}
+		dumdum := sf.Data //_*/ []byte{0x69, 0x69, 0x69, 0x69}
 		w, e1 := str.Write(dumdum)
 		if e1 != nil {
 			panic(e1)
@@ -2865,13 +2876,13 @@ func (d *dummy) OnLost(f wire.Frame) {
 		}
 		// }
 
-		fmt.Println(hex.Dump(data))
+		packet_setting.DebugPrintln(hex.Dump(data))
 		// TODO: based on this and wireshark the packets still dont seem to be retransmitted
 		// TODO: correctly :(
 
 	} else {
 
-		fmt.Println("BBBB onLost", &cc.framer)
+		packet_setting.DebugPrintln("BBBB onLost", &cc.framer)
 
 		str2, err := cc.OpenUniStreamWithPriority(priority_setting.HighPriority) //d.conn.
 		if err != nil {
@@ -2901,6 +2912,8 @@ func (d *dummy) OnLost(f wire.Frame) {
 		// TODO: 1. how can i make sure all the streams that are opened are closed once they are not needed anymore?
 		// TODO: 2. how to handle the errors that come up based on the final size of the stream?
 		// TODO:    (for now its hacky with a "turnofffornow" flag - remove that one!)
+
+		// TODO: seems like i need to add a translation back for the ping frames since they are not acked
 	}
 	// cc.sendPackets(time.Now())
 

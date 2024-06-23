@@ -13,6 +13,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
@@ -179,7 +180,7 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 				deadlineTimer.Reset(deadline)
 			}
 			if s.dataForWriting == nil || s.cancelWriteErr != nil || s.closeForShutdownErr != nil {
-				fmt.Println("break nil") // TODONO: remove
+				packet_setting.DebugPrintln("break nil") // TODONO: remove
 				break
 			}
 		}
@@ -191,7 +192,7 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 		}
 		if copied {
 			s.mutex.Lock()
-			fmt.Println("break copied") // TODONO: remove
+			packet_setting.DebugPrintln("break copied") // TODONO: remove
 			break
 		}
 		if deadline.IsZero() {
@@ -234,7 +235,7 @@ func (s *sendStream) popStreamFrame(maxBytes protocol.ByteCount, v protocol.Vers
 
 	if f != nil {
 		s.numOutstandingFrames++
-		fmt.Println(hex.Dump(f.Data))
+		packet_setting.DebugPrintln(hex.Dump(f.Data))
 	}
 	s.mutex.Unlock()
 
@@ -254,7 +255,7 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 
 	if len(s.retransmissionQueue) > 0 {
 		// DEBUG_TAG
-		fmt.Println("popNewOrRetransmittedStreamFrame: retransmissionQueue")
+		packet_setting.DebugPrintln("popNewOrRetransmittedStreamFrame: retransmissionQueue")
 		f, hasMoreRetransmissions := s.maybeGetRetransmission(maxBytes, v)
 		if f != nil || hasMoreRetransmissions {
 			if f == nil {
@@ -526,7 +527,7 @@ func (s *sendStreamAckHandler) OnAcked(f wire.Frame) {
 func (s *sendStreamAckHandler) OnLost(f wire.Frame) {
 
 	// DEBUG_TAG
-	fmt.Println("sendStreamAckHandler: OnLost")
+	packet_setting.DebugPrintln("sendStreamAckHandler: OnLost")
 
 	sf := f.(*wire.StreamFrame)
 	s.mutex.Lock()
