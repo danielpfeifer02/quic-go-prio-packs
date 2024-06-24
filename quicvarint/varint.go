@@ -87,13 +87,13 @@ func AppendWithMinSize(b []byte, i uint64, minSize uint8) []byte {
 	if i <= maxVarInt4 && 4 >= minSize {
 		return append(b, []byte{uint8(i>>24) | 0x80, uint8(i >> 16), uint8(i >> 8), uint8(i)}...)
 	}
-	if i <= maxVarInt8 && minSize == 8 {
+	if i <= maxVarInt8 && 8 >= minSize {
 		return append(b, []byte{
 			uint8(i>>56) | 0xc0, uint8(i >> 48), uint8(i >> 40), uint8(i >> 32),
 			uint8(i >> 24), uint8(i >> 16), uint8(i >> 8), uint8(i),
 		}...)
 	}
-	panic(fmt.Sprintf("%#x doesn't fit into 62 bits or minimal size > 8", i))
+	panic(fmt.Sprintf("%#x doesn't fit into 62 bits or minimal size (%d) > 8", i, minSize))
 }
 
 // AppendWithLen append i in the QUIC varint format with the desired length.
