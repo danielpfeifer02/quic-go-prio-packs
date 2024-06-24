@@ -870,6 +870,7 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 		var packetLost bool
 		if p.SendTime.Before(lostSendTime) {
 			packetLost = true
+			fmt.Println("SendTime.Before(lostSendTime)")
 			if !p.skippedPacket {
 				if h.logger.Debug() {
 					h.logger.Debugf("\tlost packet %d (time threshold)", p.PacketNumber)
@@ -878,8 +879,14 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 					h.tracer.LostPacket(p.EncryptionLevel, p.PacketNumber, logging.PacketLossTimeThreshold)
 				}
 			}
-		} else if pnSpace.largestAcked >= p.PacketNumber+packetThreshold {
+		} else if pnSpace.largestAcked >= p.PacketNumber+packetThreshold &&
+
+			// BPF_TAG
+			// REGISTRATION_TAG
+			!packet_setting.BPF_TURNED_ON { // TODONOW: just turn off for bpf packets since they can be registered out of order
+
 			packetLost = true
+			fmt.Println("largestAcked >= p.PacketNumber+packetThreshold", pnSpace.largestAcked, p.PacketNumber+packetThreshold)
 			if !p.skippedPacket {
 				if h.logger.Debug() {
 					h.logger.Debugf("\tlost packet %d (reordering threshold)", p.PacketNumber)
