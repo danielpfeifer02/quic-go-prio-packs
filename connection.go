@@ -1000,7 +1000,7 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	} else {
 		// frames = append(frames, frame)
 		fmt.Println(reflect.TypeOf(frame))
-		panic("For now only stream frames are supported")
+		panic("For now only stream frames are supported") // TODONOW: handle all frames that can occur
 	}
 	if len(data) > 0 {
 		panic("Not all data was consumed")
@@ -2856,6 +2856,11 @@ func (d *dummy) OnLost(f wire.Frame) {
 
 			fmt.Println("Manually created stream with id", id)
 			// packet_setting.RetransmissionStreamMap[id] = str
+		}
+
+		// TODO: where is the best place to call this? (likely before the write?)
+		if packet_setting.MarkStreamIdAsRetransmission != nil {
+			packet_setting.MarkStreamIdAsRetransmission(uint64(id), d.conn) // TODO: type int64 to uint64 ok?
 		}
 
 		// str.nextFrame = sf

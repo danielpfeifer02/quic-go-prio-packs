@@ -81,6 +81,10 @@ var (
 	ConnectionUpdateBPFHandler      func(id []byte, l uint8, conn QuicConnection) = nil
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
 
+	// RETRANSMISSION_TAG
+	// STREAM_ID_TAG
+	MarkStreamIdAsRetransmission func(stream_id uint64, conn QuicConnection) = nil
+
 	// RETRANSMISSON_TAG
 	StoreServerPacket                           func(pn, ts int64, data []byte, conn QuicConnection)                  = nil
 	RemoveServerPacket                          func(pn int64, conn QuicConnection)                                   = nil

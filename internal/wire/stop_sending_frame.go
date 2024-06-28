@@ -5,6 +5,7 @@ import (
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
@@ -33,7 +34,15 @@ func parseStopSendingFrame(r *bytes.Reader, _ protocol.Version) (*StopSendingFra
 
 // Length of a written frame
 func (f *StopSendingFrame) Length(_ protocol.Version) protocol.ByteCount {
-	return 1 + quicvarint.Len(uint64(f.StreamID)) + quicvarint.Len(uint64(f.ErrorCode))
+	// STREAM_ID_LENGTH_TAG
+	// TODO: might not be necessary for this frame
+	var sid_len protocol.ByteCount
+	if packet_setting.BPF_TURNED_ON {
+		sid_len = 8
+	} else {
+		sid_len = quicvarint.Len(uint64(f.StreamID))
+	}
+	return 1 + sid_len + quicvarint.Len(uint64(f.ErrorCode))
 }
 
 func (f *StopSendingFrame) Append(b []byte, _ protocol.Version) ([]byte, error) {
