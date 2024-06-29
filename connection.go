@@ -2640,6 +2640,7 @@ func (s *connection) onHasConnectionWindowUpdate() {
 }
 
 func (s *connection) onHasStreamData(id protocol.StreamID) {
+	fmt.Println("conection.go onHasStreamData")
 	s.framer.AddActiveStream(id)
 	tmp := s.packer.(*packetPacker).framer.(framer)
 	if !reflect.DeepEqual(tmp, s.framer) {
@@ -2795,6 +2796,8 @@ type dummy struct {
 	conn *connection
 }
 
+var ctr3 = 0
+
 func (d *dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
 func (d *dummy) OnLost(f wire.Frame) {
 	packet_setting.DebugPrintln("OnLost")
@@ -2861,11 +2864,18 @@ func (d *dummy) OnLost(f wire.Frame) {
 		// TODO: where is the best place to call this? (likely before the write?)
 		if packet_setting.MarkStreamIdAsRetransmission != nil {
 			packet_setting.MarkStreamIdAsRetransmission(uint64(id), d.conn) // TODO: type int64 to uint64 ok?
+			// time.Sleep(2 * time.Millisecond)
 		}
 
 		// str.nextFrame = sf
 		// d.conn.onHasStreamData(protocol.StreamID(id))
-		dumdum := sf.Data //_*/ []byte{0x69, 0x69, 0x69, 0x69}
+		dumdum := /*sf.Data //_*/ []byte{0x69, 0x69, 0x69, 0x69}
+
+		// TODO: remove (this is just for easier debugging)
+		// dumdum[100] = byte(0x02) // Some wireshark debugging stuff
+
+		ctr3++
+		fmt.Println("OnLost", ctr3)
 		w, e1 := str.Write(dumdum)
 		if e1 != nil {
 			panic(e1)
@@ -2881,7 +2891,8 @@ func (d *dummy) OnLost(f wire.Frame) {
 		}
 		// }
 
-		packet_setting.DebugPrintln(hex.Dump(data))
+		// packet_setting.Debug
+		fmt.Println(hex.Dump(dumdum))
 		// TODO: based on this and wireshark the packets still dont seem to be retransmitted
 		// TODO: correctly :(
 

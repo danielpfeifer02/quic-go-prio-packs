@@ -2,6 +2,7 @@ package quic
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/ackhandler"
@@ -128,6 +129,8 @@ func (f *framerI) AddActiveStream(id protocol.StreamID) {
 	f.mutex.Unlock()
 }
 
+var ctr2 = 0
+
 func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen protocol.ByteCount, v protocol.Version) ([]ackhandler.StreamFrame, protocol.ByteCount) {
 	startLen := len(frames)
 	var length protocol.ByteCount
@@ -176,9 +179,13 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 		// * if the receiveStream was canceled after it said it had data
 		// * the remaining size doesn't allow us to add another STREAM frame
 		if !ok {
+			fmt.Println(frame)
+			// panic("not ok")
 			continue
 		}
-		// fmt.Println("this should happen", frame.Frame.StreamID, len(frame.Frame.Data), frame.Frame.Data[1])
+		if len(frame.Frame.Data) > 0 && frame.Frame.Data[0] == 0x69 { // TODO: if the retransmisison frame gets here it is sent out correctly. Why do some not get here?
+			fmt.Println("this should happen", frame.Frame.StreamID, len(frame.Frame.Data), frame.Frame.Data[1])
+		}
 		frames = append(frames, frame)
 		length += frame.Frame.Length(v)
 	}

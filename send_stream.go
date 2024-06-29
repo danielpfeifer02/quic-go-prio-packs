@@ -134,6 +134,12 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 		// When the user now calls Close(), this is much more likely to happen before we popped that last STREAM frame,
 		// allowing us to set the FIN bit on that frame (instead of sending an empty STREAM frame with FIN).
 		if s.canBufferStreamFrame() && len(s.dataForWriting) > 0 {
+
+			if packet_setting.IS_RELAY {
+				fmt.Println("Test-------------------------------------------------")
+				fmt.Println(hex.Dump(s.dataForWriting))
+			}
+
 			if s.nextFrame == nil {
 				f := wire.GetStreamFrame()
 
@@ -189,10 +195,11 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 		if !notifiedSender {
 			s.sender.onHasStreamData(s.streamID) // must be called without holding the mutex
 			notifiedSender = true
+			fmt.Println("notifiedSender-----------------------------------------")
 		}
 		if copied {
 			s.mutex.Lock()
-			packet_setting.DebugPrintln("break copied") // TODONO: remove
+			fmt.Println("break copied") // TODONO: remove
 			break
 		}
 		if deadline.IsZero() {
@@ -301,6 +308,11 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 	if f.Fin {
 		s.finSent = true
 	}
+
+	// if len(f.Data) > 0 && f.Data[0] == 0x69 {
+	// 	fmt.Println("RETRANSMISSION_TAG: popNewOrRetransmittedStreamFrame: popNewStreamFrame")
+	// } // TODONOW: remove
+
 	return f, hasMoreData
 }
 

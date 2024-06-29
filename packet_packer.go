@@ -1056,7 +1056,11 @@ func (p *packetPacker) appendShortHeaderPacket(
 	}
 
 	if !isMTUProbePacket {
-		if size := protocol.ByteCount(len(raw) + sealer.Overhead()); size > maxPacketSize {
+		seal_overhead := sealer.Overhead()
+		// if crypto_turnoff.CRYPTO_TURNED_OFF { // TODONOW: necessary?
+		// 	seal_overhead = 0
+		// }
+		if size := protocol.ByteCount(len(raw) + seal_overhead); size > maxPacketSize {
 			return shortHeaderPacket{}, fmt.Errorf("PacketPacker BUG: packet too large (%d bytes, allowed %d bytes)", size, maxPacketSize)
 		}
 	}

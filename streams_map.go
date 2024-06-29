@@ -206,6 +206,9 @@ func (m *streamsMap) OpenUniStream() (SendStream, error) {
 		return nil, Err0RTTRejected
 	}
 	str, err := mm.OpenStream()
+	if str.StreamID().Type() != protocol.StreamTypeUni {
+		panic("opened a unidirectional stream, but got a bidirectional stream")
+	}
 	return str, convertStreamError(err, protocol.StreamTypeBidi, m.perspective)
 }
 
@@ -229,6 +232,9 @@ func (m *streamsMap) OpenUniStreamSync(ctx context.Context) (SendStream, error) 
 		return nil, Err0RTTRejected
 	}
 	str, err := mm.OpenStreamSync(ctx)
+	if str.StreamID().Type() != protocol.StreamTypeUni {
+		panic("opened a unidirectional stream, but got a bidirectional stream")
+	}
 	return str, convertStreamError(err, protocol.StreamTypeUni, m.perspective)
 }
 

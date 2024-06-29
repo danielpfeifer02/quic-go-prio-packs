@@ -49,7 +49,7 @@ func NewStreamFlowController(
 }
 
 // RETRANSMISSION_TAG // TODO: how to handle retransmissions here?
-var turnofffornow = true
+var turnofffornow = false
 
 // UpdateHighestReceived updates the highestReceived value, if the offset is higher.
 func (c *streamFlowController) UpdateHighestReceived(offset protocol.ByteCount, final bool) error {
