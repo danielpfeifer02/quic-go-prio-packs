@@ -79,10 +79,16 @@ func (m *streamsMap) GetNewFlowController() *func(protocol.StreamID) flowcontrol
 // BPF_CC_TAG
 // RETRANSMISSION_TAG
 func (m *streamsMap) AddToStreams(id protocol.StreamID, str SendStream) {
+	m.mutex.Lock()
+	m.outgoingUniStreams.mutex.Lock() // TODO: not manually here but use a function of outgoingUniStreams?
+
 	m.outgoingUniStreams.streams[id.StreamNum()] = str.(sendStreamI)
 	old_ns := m.outgoingUniStreams.nextStream
 	tmp := protocol.StreamNum((id-3)/4 + 1) // TODO corresponding streamnum even needed?
 	m.outgoingUniStreams.nextStream = max(old_ns, tmp+1)
+
+	m.outgoingUniStreams.mutex.Unlock()
+	m.mutex.Unlock()
 }
 
 func newStreamsMap(

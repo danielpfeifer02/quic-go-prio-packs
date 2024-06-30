@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -2640,7 +2639,7 @@ func (s *connection) onHasConnectionWindowUpdate() {
 }
 
 func (s *connection) onHasStreamData(id protocol.StreamID) {
-	fmt.Println("conection.go onHasStreamData")
+	packet_setting.DebugPrintln("connection.go onHasStreamData")
 	s.framer.AddActiveStream(id)
 	tmp := s.packer.(*packetPacker).framer.(framer)
 	if !reflect.DeepEqual(tmp, s.framer) {
@@ -2741,7 +2740,46 @@ func (s *connection) Unlock() {
 }
 
 // BPF_CC_TAG
+func (s *connection) GetCongestionWindowData() *packet_setting.CongestionWindowData {
+
+	// TODO: remove (wrong tracer)
+	// tracer := s.sentPacketHandler.GetTracer()
+	// if tracer == nil {
+	// 	fmt.Println("Tracer is nil")
+	// 	return nil
+	// }
+
+	// return tracer.GetCongestionWindowData()
+
+	/*
+		// BPF_CC_TAG
+			GetCongestionWindowData: func() *packet_setting.CongestionWindowData {
+				data := packet_setting.CongestionWindowData{}
+
+				data.MinRTT = t.lastMetrics.MinRTT
+				data.SmoothedRTT = t.lastMetrics.SmoothedRTT
+				data.LatestRTT = t.lastMetrics.LatestRTT
+				data.RTTVariance = t.lastMetrics.RTTVariance
+				data.CongestionWindow = t.lastMetrics.CongestionWindow
+				data.BytesInFlight = t.lastMetrics.BytesInFlight
+				data.PacketsInFlight = t.lastMetrics.PacketsInFlight
+
+				return &data
+			},
+	*/
+
+	return nil
+}
+
+// BPF_CC_TAG
 func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
+
+	// TODO: what needs to be done here:
+	// 1. Parse the packet and get the stream frames
+	// 2. Create a sendstream for each frame in the stream frames (and potentially reuse them)
+	// 3. Change the OnLost function of the send_stream to handle bpf retranmissions separately
+	// 4. Make sure the Registering method of sentPacketHandler has access to the handlers to correctly use them
+	// 5. Register the packet with the sent packet handler
 
 	// Set the frames for the packet
 	// fmt.Println("Parse pn", prc.PacketNumber)
@@ -2762,18 +2800,64 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 
 	handler_lut := make(map[protocol.StreamID]ackhandler.FrameHandler)
 	for _, sf := range stream_frames {
+
+		// fmt.Println("Debouuuug")
+		id := sf.StreamID
+		sender := s.streamsMap.GetSender()
+		nfc := s.streamsMap.GetNewFlowController()
+
+		var already_str sendStreamI
+		var str *sendStream
+		if _, ok := packet_setting.RetransmissionStreamMap[id]; ok && false { // TODO: remove
+			// if cast, ok := already_str.(*sendStream); ok {
+			// 	str = cast
+			// } else {
+			// 	panic("Not a send stream")
+			// }
+			// fmt.Println("Already created stream with id", id)
+			already_str, err = s.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
+			if err != nil {
+				panic(err)
+			}
+
+			str = already_str.(*sendStream) // TODO: write on closed stream????
+
+		} else {
+			// TODO: all good with id / num of stream?
+			str = newSendStream(id, *sender, (*nfc)(id))
+
+			// tmp, err := s.OpenUniStreamWithPriority(priority_setting.HighPriority)
+			// if err != nil {
+			// 	panic(err)
+			// }
+			// str = tmp.(*sendStream)
+
+			s.streamsMap.AddToStreams(protocol.StreamID(id), str)
+
+			// fmt.Println("Manually created stream with id", id)
+			// packet_setting.RetransmissionStreamMap[id] = str
+
+			str.overwrittenOnLost = OnLost
+			str.overwrittenOnAcked = OnAcked
+		}
+
+		if packet_setting.MarkStreamIdAsRetransmission != nil {
+			packet_setting.MarkStreamIdAsRetransmission(uint64(id), s) // TODO: type int64 to uint64 ok?
+			// time.Sleep(2 * time.Millisecond)
+		}
+
 		// send_stream, err := s.streamsMap.GetOrOpenSendStream(sf.StreamID)
 		// if err != nil {
 		// 	panic(err)
 		// }
-		handler := &dummy{
-			conn: s,
-		} //(*sendStreamAckHandler)(send_stream.(*sendStream))
-		handler_lut[sf.StreamID] = handler
+		// handler := &dummy{
+		// 	conn: s,
+		// } //(*sendStreamAckHandler)(send_stream.(*sendStream))
+		handler_lut[sf.StreamID] = (*sendStreamAckHandler)(str)
 	}
-	if cc == nil {
-		cc = s
-	}
+	// if cc == nil {
+	// 	cc = s
+	// }
 
 	// fmt.Println("Connection RegisterBPFPacket\n\n\n")
 	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
@@ -2798,29 +2882,75 @@ type dummy struct {
 
 var ctr3 = 0
 
-func (d *dummy) OnAcked(f wire.Frame) { fmt.Println("OnAcked") }
-func (d *dummy) OnLost(f wire.Frame) {
-	packet_setting.DebugPrintln("OnLost")
+func /*(d *dummy)// */ OnAcked(f wire.Frame) { return; fmt.Println("OnAcked") }
+func /*(d *dummy)// */ OnLost(f wire.Frame, str *sendStream) {
+	fmt.Println("OnLost")
 	// fmt.Println("TURN ON ONLOST AGAIN\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 	// return // TODO: remove
+
+	sf := f.(*wire.StreamFrame)
+
+	// data := []byte{0x69, 0x69, 0x69, 0x69} // sf.Data
+
+	// time.Sleep(2 * time.Millisecond)
+
+	// w, err := str.Write(data)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// if w != len(data) {
+	// 	panic("Not all bytes written")
+	// }
+
+	// err = str.Close() // TODO: WHen to close the stream?
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	s := (*sendStreamAckHandler)(str)
+
+	if str.streamID != sf.StreamID {
+		panic("Stream ID mismatch")
+	}
+
+	s.mutex.Lock()
+	if s.cancelWriteErr != nil {
+		s.mutex.Unlock()
+		return
+	}
+	sf.DataLenPresent = true
+
+	// sf.Data[0] = 0x69 // TODO: remove
+
+	s.retransmissionQueue = append(s.retransmissionQueue, sf)
+
+	s.mutex.Unlock()
+
+	s.sender.onHasStreamData(s.streamID)
+
+	// fmt.Println("OnLostFlag", sf.StreamID, str.streamID)
+
+}
+
+/*
 	// str, err := d.conn.OpenUniStreamWithPriority(priority_setting.HighPriority)
 	// if err != nil {
 	// 	panic(err)
 	// }
 
 	sf := f.(*wire.StreamFrame)
-	id := sf.StreamID
-	sender := cc.streamsMap.GetSender()
-	nfc := cc.streamsMap.GetNewFlowController()
+	// id := sf.StreamID
+	// sender := cc.streamsMap.GetSender()
+	// nfc := cc.streamsMap.GetNewFlowController()
 
-	if id&0x3 != 0x3 {
-		panic("Only server initialized and uni directional streams are supported")
-	}
+	// if id&0x3 != 0x3 {
+	// 	panic("Only server initialized and uni directional streams are supported")
+	// }
 
-	if sf.DataLen() == 0 {
-		fmt.Println("No data in stream frame") // TODO: why happening?
-		return
-	}
+	// if sf.DataLen() == 0 {
+	// 	fmt.Println("No data in stream frame") // TODO: why happening?
+	// 	return
+	// }
 
 	// s := &stream{sender: sender
 	// senderForSendStream := &uniStreamSender{
@@ -2839,37 +2969,38 @@ func (d *dummy) OnLost(f wire.Frame) {
 	var str *sendStream
 
 	if true {
-		if _, ok := packet_setting.RetransmissionStreamMap[id]; ok {
-			// if cast, ok := already_str.(*sendStream); ok {
-			// 	str = cast
-			// } else {
-			// 	panic("Not a send stream")
-			// }
-			// fmt.Println("Already created stream with id", id)
-			already_str, err := d.conn.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
-			if err != nil {
-				panic(err)
-			}
-			str = already_str.(*sendStream) // TODO: write on closed stream????
+		// if _, ok := packet_setting.RetransmissionStreamMap[id]; ok {
+		// 	// if cast, ok := already_str.(*sendStream); ok {
+		// 	// 	str = cast
+		// 	// } else {
+		// 	// 	panic("Not a send stream")
+		// 	// }
+		// 	// fmt.Println("Already created stream with id", id)
+		// 	already_str, err := d.conn.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
 
-		} else {
-			// TODO: all good with id / num of stream?
-			str = newSendStream(id, *sender, (*nfc)(id))
-			d.conn.streamsMap.AddToStreams(protocol.StreamID(id), str)
+		// 	str = already_str.(*sendStream) // TODO: write on closed stream????
 
-			fmt.Println("Manually created stream with id", id)
-			// packet_setting.RetransmissionStreamMap[id] = str
-		}
+		// } else {
+		// 	// TODO: all good with id / num of stream?
+		// 	str = newSendStream(id, *sender, (*nfc)(id))
+		// 	d.conn.streamsMap.AddToStreams(protocol.StreamID(id), str)
+
+		// 	fmt.Println("Manually created stream with id", id)
+		// 	// packet_setting.RetransmissionStreamMap[id] = str
+		// }
 
 		// TODO: where is the best place to call this? (likely before the write?)
-		if packet_setting.MarkStreamIdAsRetransmission != nil {
-			packet_setting.MarkStreamIdAsRetransmission(uint64(id), d.conn) // TODO: type int64 to uint64 ok?
-			// time.Sleep(2 * time.Millisecond)
-		}
+		// if packet_setting.MarkStreamIdAsRetransmission != nil {
+		// 	packet_setting.MarkStreamIdAsRetransmission(uint64(id), d.conn) // TODO: type int64 to uint64 ok?
+		// 	// time.Sleep(2 * time.Millisecond)
+		// }
 
 		// str.nextFrame = sf
 		// d.conn.onHasStreamData(protocol.StreamID(id))
-		dumdum := /*sf.Data //_*/ []byte{0x69, 0x69, 0x69, 0x69}
+		dumdum := /*sf.Data //_* / []byte{0x69, 0x69, 0x69, 0x69}
 
 		// TODO: remove (this is just for easier debugging)
 		// dumdum[100] = byte(0x02) // Some wireshark debugging stuff
@@ -2898,26 +3029,26 @@ func (d *dummy) OnLost(f wire.Frame) {
 
 	} else {
 
-		packet_setting.DebugPrintln("BBBB onLost", &cc.framer)
+		// packet_setting.DebugPrintln("BBBB onLost", &cc.framer)
 
-		str2, err := cc.OpenUniStreamWithPriority(priority_setting.HighPriority) //d.conn.
-		if err != nil {
-			panic(err)
-		}
-		damdam := []byte{0x42, 0x42, 0x42, 0x42}
-		w, e2 := str2.Write(damdam)
-		if e2 != nil {
-			panic(e2)
-		}
-		if w != len(damdam) {
-			panic("Not all bytes written 42")
-		}
+		// str2, err := cc.OpenUniStreamWithPriority(priority_setting.HighPriority) //d.conn.
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// damdam := []byte{0x42, 0x42, 0x42, 0x42}
+		// w, e2 := str2.Write(damdam)
+		// if e2 != nil {
+		// 	panic(e2)
+		// }
+		// if w != len(damdam) {
+		// 	panic("Not all bytes written 42")
+		// }
 
-		ctr++
-		err = str2.Close()
-		if err != nil {
-			panic(err)
-		}
+		// ctr++
+		// err = str2.Close()
+		// if err != nil {
+		// 	panic(err)
+		// }
 		// TODO: now i get an error for inconsistent final offset which makes sense again because the client already
 		// TODO: received the stream with the id for a frame and now receives a second time this stream
 
@@ -2934,7 +3065,7 @@ func (d *dummy) OnLost(f wire.Frame) {
 	// cc.sendPackets(time.Now())
 
 	// fmt.Println(hex.Dump(data))
-	fmt.Println("debugmask", sf.StreamID, ctr)
+	// fmt.Println("debugmask", sf.StreamID, ctr)
 
 	if false {
 		// str.WriteFinConsidering([]byte{0x69, 0x69, 0x69, 0x69}, false, sf)
@@ -2954,5 +3085,6 @@ func (d *dummy) OnLost(f wire.Frame) {
 	}
 }
 
-var cc *connection = nil
-var ctr = 0
+// var cc *connection = nil
+// var ctr = 0
+//*/

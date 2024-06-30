@@ -277,6 +277,9 @@ type Connection interface {
 	// RegisterBPFPacket registers a BPF packet that was sent by the BPF program.
 	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
 
+	// BPF_CC_TAG
+	GetCongestionWindowData() *packet_setting.CongestionWindowData
+
 	// // BPF_CC_TAG
 	// // RETRANSMISSION_TAG
 	// GetOrOpenSendStream(StreamID) (SendStream, error)

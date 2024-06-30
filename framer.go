@@ -179,7 +179,6 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 		// * if the receiveStream was canceled after it said it had data
 		// * the remaining size doesn't allow us to add another STREAM frame
 		if !ok {
-			fmt.Println(frame)
 			// panic("not ok")
 			continue
 		}

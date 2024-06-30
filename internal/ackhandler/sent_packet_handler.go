@@ -849,6 +849,9 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 	maxRTT := float64(max(h.rttStats.LatestRTT(), h.rttStats.SmoothedRTT()))
 	lossDelay := time.Duration(timeThreshold * maxRTT)
 
+	// TODO: why is maxRTT only 5ms for a 5ms delay on both sides? // TODONOW: remove
+	lossDelay += time.Duration(2 * maxRTT)
+
 	// Minimum time of granularity before packets are deemed lost.
 	lossDelay = max(lossDelay, protocol.TimerGranularity)
 
@@ -869,6 +872,7 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 
 		var packetLost bool
 		if p.SendTime.Before(lostSendTime) {
+			fmt.Println(p.SendTime.UnixNano() - lostSendTime.UnixNano())
 			packetLost = true
 			fmt.Println("SendTime.Before(lostSendTime)")
 			if !p.skippedPacket {

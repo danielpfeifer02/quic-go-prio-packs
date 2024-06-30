@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 )
@@ -69,6 +70,17 @@ type StreamFrame struct {
 }
 
 type GeneralFrame struct {
+}
+
+type CongestionWindowData struct {
+	MinRTT      time.Duration
+	SmoothedRTT time.Duration
+	LatestRTT   time.Duration
+	RTTVariance time.Duration
+
+	CongestionWindow protocol.ByteCount
+	BytesInFlight    protocol.ByteCount
+	PacketsInFlight  int
 }
 
 var (
