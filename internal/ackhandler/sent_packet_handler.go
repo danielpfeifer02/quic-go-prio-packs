@@ -331,6 +331,7 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 			last_t = pnSpace.lastAckElicitingPacketTime
 		}
 		pnSpace.lastAckElicitingPacketTime = last_t
+		// pnSpace.lastAckElicitingPacketTime = t
 		h.bytesInFlight += size
 
 		// TODO: This causes a panic for "negative bytes_in_flight"
@@ -369,6 +370,21 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 	}
 	h.setLossDetectionTimer()
 	// }()
+
+	// BPF_CC_TAG
+	// CONGESTION_WINDOW_TAG
+	if packet_setting.HandleCongestionMetricUpdate != nil {
+		data := packet_setting.CongestionWindowData{
+			MinRTT:           h.rttStats.MinRTT(),
+			SmoothedRTT:      h.rttStats.SmoothedRTT(),
+			LatestRTT:        h.rttStats.LatestRTT(),
+			RTTVariance:      h.rttStats.MeanDeviation(),
+			CongestionWindow: h.congestion.GetCongestionWindow(),
+			BytesInFlight:    h.bytesInFlight,
+			PacketsInFlight:  h.packetsInFlight(),
+		}
+		packet_setting.HandleCongestionMetricUpdate(data, h.connection)
+	}
 
 	// // // TEMPORARY_TAG
 	// // Tmp = *h
@@ -474,6 +490,21 @@ func (h *sentPacketHandler) SentPacket(
 
 	// fmt.Println("CongestionWindow:", h.congestion.GetCongestionWindow(), "BytesInFlight:", h.bytesInFlight, "PacketsInFlight:", h.packetsInFlight())
 	h.setLossDetectionTimer()
+
+	// BPF_CC_TAG
+	// CONGESTION_WINDOW_TAG
+	if packet_setting.HandleCongestionMetricUpdate != nil {
+		data := packet_setting.CongestionWindowData{
+			MinRTT:           h.rttStats.MinRTT(),
+			SmoothedRTT:      h.rttStats.SmoothedRTT(),
+			LatestRTT:        h.rttStats.LatestRTT(),
+			RTTVariance:      h.rttStats.MeanDeviation(),
+			CongestionWindow: h.congestion.GetCongestionWindow(),
+			BytesInFlight:    h.bytesInFlight,
+			PacketsInFlight:  h.packetsInFlight(),
+		}
+		packet_setting.HandleCongestionMetricUpdate(data, h.connection)
+	}
 }
 
 func (h *sentPacketHandler) getPacketNumberSpace(encLevel protocol.EncryptionLevel) *packetNumberSpace {
@@ -619,6 +650,22 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 	}
 
 	h.setLossDetectionTimer()
+
+	// BPF_CC_TAG
+	// CONGESTION_WINDOW_TAG
+	if packet_setting.HandleCongestionMetricUpdate != nil {
+		data := packet_setting.CongestionWindowData{
+			MinRTT:           h.rttStats.MinRTT(),
+			SmoothedRTT:      h.rttStats.SmoothedRTT(),
+			LatestRTT:        h.rttStats.LatestRTT(),
+			RTTVariance:      h.rttStats.MeanDeviation(),
+			CongestionWindow: h.congestion.GetCongestionWindow(),
+			BytesInFlight:    h.bytesInFlight,
+			PacketsInFlight:  h.packetsInFlight(),
+		}
+		packet_setting.HandleCongestionMetricUpdate(data, h.connection)
+	}
+
 	return acked1RTTPacket, nil
 }
 
@@ -850,7 +897,7 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 	lossDelay := time.Duration(timeThreshold * maxRTT)
 
 	// TODO: why is maxRTT only 5ms for a 5ms delay on both sides? // TODONOW: remove
-	lossDelay += time.Duration(2 * maxRTT)
+	// lossDelay += time.Duration(2 * maxRTT)
 
 	// Minimum time of granularity before packets are deemed lost.
 	lossDelay = max(lossDelay, protocol.TimerGranularity)
@@ -866,15 +913,23 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 		// 	"Packet Number:", p.PacketNumber,
 		// 	"Threshold:", packetThreshold)
 
+		// // BPF_ACK_TAG
+		// // TODO: check if the packet is correctly removed after being acked
+		// if packet_setting.IS_RELAY { // TODO: remove
+		// 	if v, ok := packet_setting.AckedCache[int64(p.PacketNumber)]; ok && v {
+		// 		return true, nil
+		// 	}
+		// }
+
 		if p.PacketNumber > pnSpace.largestAcked {
 			return false, nil
 		}
 
 		var packetLost bool
-		if p.SendTime.Before(lostSendTime) {
-			fmt.Println(p.SendTime.UnixNano() - lostSendTime.UnixNano())
+		if p.SendTime.Before(lostSendTime) { //&& !packet_setting.BPF_TURNED_ON { // TODONOW: why these false positives?
 			packetLost = true
-			fmt.Println("SendTime.Before(lostSendTime)")
+			diff := (p.SendTime.UnixNano() - lostSendTime.UnixNano())
+			fmt.Println("SendTime.Before(lostSendTime)", p.PacketNumber, p.SendTime.UnixNano(), diff, p.IsBPFRegisteredPacket)
 			if !p.skippedPacket {
 				if h.logger.Debug() {
 					h.logger.Debugf("\tlost packet %d (time threshold)", p.PacketNumber)
@@ -1175,6 +1230,21 @@ func (h *sentPacketHandler) ResetForRetry(now time.Time) error {
 		}
 		if h.tracer != nil && h.tracer.UpdatedMetrics != nil {
 			h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
+		}
+
+		// BPF_CC_TAG
+		// CONGESTION_WINDOW_TAG
+		if packet_setting.HandleCongestionMetricUpdate != nil {
+			data := packet_setting.CongestionWindowData{
+				MinRTT:           h.rttStats.MinRTT(),
+				SmoothedRTT:      h.rttStats.SmoothedRTT(),
+				LatestRTT:        h.rttStats.LatestRTT(),
+				RTTVariance:      h.rttStats.MeanDeviation(),
+				CongestionWindow: h.congestion.GetCongestionWindow(),
+				BytesInFlight:    h.bytesInFlight,
+				PacketsInFlight:  h.packetsInFlight(),
+			}
+			packet_setting.HandleCongestionMetricUpdate(data, h.connection)
 		}
 	}
 	h.initialPackets = newPacketNumberSpace(h.initialPackets.pns.Peek(), false)

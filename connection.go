@@ -1521,6 +1521,7 @@ func (s *connection) handlePacket(p receivedPacket) {
 	case s.receivedPackets <- p:
 	default:
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
+			fmt.Println("ONE DOS")
 			s.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.InvalidPacketNumber, p.Size(), logging.PacketDropDOSPrevention)
 		}
 	}
@@ -2611,6 +2612,7 @@ func (s *connection) tryQueueingUndecryptablePacket(p receivedPacket, pt logging
 	}
 	if len(s.undecryptablePackets)+1 > protocol.MaxUndecryptablePackets {
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
+			fmt.Println("TWO DOS")
 			s.tracer.DroppedPacket(pt, protocol.InvalidPacketNumber, p.Size(), logging.PacketDropDOSPrevention)
 		}
 		s.logger.Infof("Dropping undecryptable packet (%d bytes). Undecryptable packet queue full.", p.Size())
@@ -2740,38 +2742,6 @@ func (s *connection) Unlock() {
 }
 
 // BPF_CC_TAG
-func (s *connection) GetCongestionWindowData() *packet_setting.CongestionWindowData {
-
-	// TODO: remove (wrong tracer)
-	// tracer := s.sentPacketHandler.GetTracer()
-	// if tracer == nil {
-	// 	fmt.Println("Tracer is nil")
-	// 	return nil
-	// }
-
-	// return tracer.GetCongestionWindowData()
-
-	/*
-		// BPF_CC_TAG
-			GetCongestionWindowData: func() *packet_setting.CongestionWindowData {
-				data := packet_setting.CongestionWindowData{}
-
-				data.MinRTT = t.lastMetrics.MinRTT
-				data.SmoothedRTT = t.lastMetrics.SmoothedRTT
-				data.LatestRTT = t.lastMetrics.LatestRTT
-				data.RTTVariance = t.lastMetrics.RTTVariance
-				data.CongestionWindow = t.lastMetrics.CongestionWindow
-				data.BytesInFlight = t.lastMetrics.BytesInFlight
-				data.PacketsInFlight = t.lastMetrics.PacketsInFlight
-
-				return &data
-			},
-	*/
-
-	return nil
-}
-
-// BPF_CC_TAG
 func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
 
 	// TODO: what needs to be done here:
@@ -2863,6 +2833,11 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
 	s.sentPacketHandler.RegisterBPFPacket(prc, handler_lut)
 
+	// TODO: remove
+	s.logShortHeaderPacket(protocol.ConnectionID{}, &wire.AckFrame{}, // TODO: just for debugging
+		make([]ackhandler.Frame, 0), make([]ackhandler.StreamFrame, 0),
+		protocol.PacketNumber(prc.PacketNumber), 0, 0, 0, 0, false)
+
 	// DEBUG_TAG
 	// fmt.Println("Check for timeout")
 	// now := time.Now()
@@ -2884,9 +2859,9 @@ var ctr3 = 0
 
 func /*(d *dummy)// */ OnAcked(f wire.Frame) { return; fmt.Println("OnAcked") }
 func /*(d *dummy)// */ OnLost(f wire.Frame, str *sendStream) {
-	fmt.Println("OnLost")
+	// fmt.Println("OnLost")
 	// fmt.Println("TURN ON ONLOST AGAIN\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
-	// return // TODO: remove
+	return // TODO: remove
 
 	sf := f.(*wire.StreamFrame)
 

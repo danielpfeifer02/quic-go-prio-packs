@@ -84,6 +84,10 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 	// (i.e., the position of the first packet with a higher packet number)
 	// lock := &sync.Mutex{}
 
+	p_in.SendTime = time.Now()
+	fmt.Println("Set sendtime to", p_in.SendTime.UnixNano()) // TODONOW: fix issue with sendtime
+	p_in.IsBPFRegisteredPacket = true                        // &&
+
 	pn := p_in.PacketNumber
 	// h.insertionMutex.Lock() // TODO: necessary?
 	// defer h.insertionMutex.Unlock()

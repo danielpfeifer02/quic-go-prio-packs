@@ -276,7 +276,7 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 				return nil, true
 			}
 
-			if f.Data[0] == 0x69 {
+			if f.Data[0] == 0x69 { // TODONOW: remove
 				fmt.Println("popNewOrRetransmittedStreamFrame: retransmissionQueue")
 			} else {
 				fmt.Println("Userspace retransmissionQueue")
@@ -323,7 +323,7 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 	}
 
 	if f.Data[0] == 0x69 {
-		fmt.Println("popNewOrRetransmittedStreamFrame: popNewStreamFrame")
+		fmt.Println("popNewOrRetransmittedStreamFrame: popNewStreamFrame") // TODONOW: remove
 	}
 	return f, hasMoreData
 }
@@ -508,6 +508,7 @@ func (s *sendStream) closeForShutdown(err error) {
 func (s *sendStream) signalWrite() {
 	select {
 	case s.writeChan <- struct{}{}:
+		// fmt.Println("signalWrite", hex.Dump(s.nextFrame.Data[:10])) // TODONOW: remove
 	default:
 	}
 }

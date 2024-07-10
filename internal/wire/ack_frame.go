@@ -244,11 +244,26 @@ func (f *AckFrame) AcksPacket(p protocol.PacketNumber) bool {
 		return false
 	}
 
+	// BPF_ACK_TAG
 	i := sort.Search(len(f.AckRanges), func(i int) bool {
-		return p >= f.AckRanges[i].Smallest
+		acks := p >= f.AckRanges[i].Smallest
+		// if acks && packet_setting.IS_RELAY { // TODO: remove
+		// 	fmt.Println("ACKED packet", p, "in range")
+		// 	packet_setting.AckedCacheLock.Lock()
+		// 	packet_setting.AckedCache[int64(p)] = true
+		// 	packet_setting.AckedCacheLock.Unlock()
+		// }
+		return acks
 	})
 	// i will always be < len(f.AckRanges), since we checked above that p is not bigger than the largest acked
-	return p <= f.AckRanges[i].Largest
+	acks := p <= f.AckRanges[i].Largest
+	// if acks && packet_setting.IS_RELAY { // TODO: remove
+	// 	fmt.Println("ACKED packet", p, "in range")
+	// 	packet_setting.AckedCacheLock.Lock()
+	// 	packet_setting.AckedCache[int64(p)] = true
+	// 	packet_setting.AckedCacheLock.Unlock()
+	// }
+	return acks
 }
 
 func (f *AckFrame) Reset() {

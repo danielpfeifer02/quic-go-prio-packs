@@ -97,9 +97,15 @@ var (
 	// STREAM_ID_TAG
 	MarkStreamIdAsRetransmission func(stream_id uint64, conn QuicConnection) = nil
 
+	// BPF_CC_TAG
+	// CONGESTION_WINDOW_TAG
+	HandleCongestionMetricUpdate func(data CongestionWindowData, conn QuicConnection) = nil
+
 	// RETRANSMISSON_TAG
 	StoreServerPacket                           func(pn, ts int64, data []byte, conn QuicConnection)                  = nil
 	RemoveServerPacket                          func(pn int64, conn QuicConnection)                                   = nil
+	StoreRelayPacket                            func(pn, ts int64, data []byte, conn QuicConnection)                  = nil
+	RemoveRelayPacket                           func(pn int64, conn QuicConnection)                                   = nil
 	GetRetransmitServerPacketAfterPNTranslation func(bpf_pn int64, conn QuicConnection) RetransmissionPacketContainer = nil
 
 	// get the largest sent packet number of a connection
@@ -127,11 +133,16 @@ var (
 
 	BPF_PACKET_RETRANSMISSION bool = true
 
+	RELAY_CWND_DATA_PRINT bool = true
+
 	ReceivedPacketAtTimestampHandler func(pn, ts int64, conn QuicConnection) = nil
 
 	RetransmissionStreamMap map[protocol.StreamID]interface{} = make(map[protocol.StreamID]interface{})
 
 	DEBUG_PRINT bool = false
+
+	AckedCache     map[int64]bool = make(map[int64]bool)
+	AckedCacheLock sync.Mutex     = sync.Mutex{}
 )
 
 func DebugPrintln(s ...any) {

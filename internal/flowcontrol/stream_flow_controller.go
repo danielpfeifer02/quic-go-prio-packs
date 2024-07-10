@@ -6,6 +6,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 type streamFlowController struct {
@@ -80,7 +81,7 @@ func (c *streamFlowController) UpdateHighestReceived(offset protocol.ByteCount, 
 	// A higher offset was received before.
 	// This can happen due to reordering.
 	if offset <= c.highestReceived && !turnofffornow { // TODONOW: what to do with retranmissions that cause problems here?
-		if final {
+		if final && !packet_setting.BPF_TURNED_ON { // TODO: handle correctly
 			return &qerr.TransportError{
 				ErrorCode:    qerr.FinalSizeError,
 				ErrorMessage: fmt.Sprintf("received final offset %d for stream %d, but already received offset %d before", offset, c.streamID, c.highestReceived),
