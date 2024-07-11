@@ -3,10 +3,8 @@ package quic
 import (
 	crand "crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"golang.org/x/exp/rand"
 
@@ -831,23 +829,23 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 	// DEBUG_TAG
 	// fmt.Println("Sending packet with length ", pl.length)
 
-	if packet_setting.StoreRelayPacket != nil &&
-		p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR &&
-		p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR {
+	// if packet_setting.StoreRelayPacket != nil && // TODONOW: remove
+	// 	p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR &&
+	// 	p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR {
 
-		panic("This setup seems very complicated. At this point maybe easier to just update the packet number / stream id")
+	// 	panic("This setup seems very complicated. At this point maybe easier to just update the packet number / stream id")
 
-		pl_bytes := make([]byte, pl.length)
-		for _, f := range pl.frames {
-			fmt.Println("control frames not supported (%v)", reflect.TypeOf(f.Frame))
-			panic("control frames not supported")
-		}
-		for _, sf := range pl.streamFrames {
-			pl_bytes = append(pl_bytes, sf.Frame.Data...)
-		}
+	// 	pl_bytes := make([]byte, pl.length)
+	// 	for _, f := range pl.frames {
+	// 		fmt.Println("control frames not supported (%v)", reflect.TypeOf(f.Frame))
+	// 		panic("control frames not supported")
+	// 	}
+	// 	for _, sf := range pl.streamFrames {
+	// 		pl_bytes = append(pl_bytes, sf.Frame.Data...)
+	// 	}
 
-		fmt.Println("ComposeNextPacket: ", hex.Dump(pl_bytes))
-	}
+	// 	fmt.Println("ComposeNextPacket: ", hex.Dump(pl_bytes))
+	// }
 
 	return pl
 }

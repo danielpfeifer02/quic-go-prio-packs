@@ -20,6 +20,9 @@ type sentPacketHistory struct {
 	updateLargestSent func(pn protocol.PacketNumber)
 	largestSent       protocol.PacketNumber
 
+	// DEBUG_TAG
+	translation_map map[protocol.PacketNumber]protocol.PacketNumber
+
 	insertionMutex *sync.Mutex
 }
 
@@ -29,6 +32,8 @@ func newSentPacketHistory() *sentPacketHistory {
 		highestPacketNumber: protocol.InvalidPacketNumber,
 		largestSent:         protocol.InvalidPacketNumber,
 		insertionMutex:      &sync.Mutex{},
+		// DEBUG_TAG
+		translation_map: make(map[protocol.PacketNumber]protocol.PacketNumber),
 	}
 }
 
@@ -85,8 +90,8 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 	// lock := &sync.Mutex{}
 
 	p_in.SendTime = time.Now()
-	fmt.Println("Set sendtime to", p_in.SendTime.UnixNano()) // TODONOW: fix issue with sendtime
-	p_in.IsBPFRegisteredPacket = true                        // &&
+	// fmt.Println("Set sendtime to", p_in.SendTime.UnixNano()) // TODONOW: fix issue with sendtime
+	p_in.IsBPFRegisteredPacket = true // &&
 
 	pn := p_in.PacketNumber
 	// h.insertionMutex.Lock() // TODO: necessary?
@@ -233,6 +238,7 @@ func (h *sentPacketHistory) Len() int {
 }
 
 func (h *sentPacketHistory) Remove(pn protocol.PacketNumber) error {
+	// fmt.Println("Removing packet", pn)
 	idx, ok := h.getIndex(pn)
 	if !ok { // Potentially we have to wait until the packet is registered
 
@@ -375,4 +381,42 @@ func (h *sentPacketHistory) DeclareLost(pn protocol.PacketNumber) {
 	if idx == 0 {
 		h.cleanupStart()
 	}
+}
+
+// BPF_RETRANSMISSION_TAG
+func (h *sentPacketHistory) UpdatePacketNumberMapping(mapping packet_setting.PacketNumberMapping) {
+
+	// h.insertionMutex.Lock()
+	// defer h.insertionMutex.Unlock()
+
+	for i, p := range h.packets {
+		if p == nil {
+			continue
+		}
+		if p.PacketNumber == protocol.PacketNumber(mapping.OriginalPacketNumber) {
+
+			index_for_insertion := 0
+			for j, p := range h.packets {
+				if p == nil {
+					continue
+				}
+				if p.PacketNumber > protocol.PacketNumber(mapping.NewPacketNumber) {
+					index_for_insertion = j
+					break
+				}
+			}
+
+			history_without := append(h.packets[:i], h.packets[i+1:]...)
+			p.PacketNumber = protocol.PacketNumber(mapping.NewPacketNumber)
+			if p.PacketNumber > h.highestPacketNumber {
+				h.highestPacketNumber = p.PacketNumber
+			}
+			p.SendTime = time.Now() // time.Unix(0, 1<<63-1) // TODO: remove
+			h.packets = append(history_without[:index_for_insertion], append([]*packet{p}, history_without[index_for_insertion:]...)...)
+			// fmt.Printf("Packet number mapping updated (%d->%d)\n", mapping.OriginalPacketNumber, mapping.NewPacketNumber)
+			h.translation_map[protocol.PacketNumber(mapping.NewPacketNumber)] = protocol.PacketNumber(mapping.OriginalPacketNumber)
+			return
+		}
+	}
+	// panic("Packet number not found in sent packet history")
 }

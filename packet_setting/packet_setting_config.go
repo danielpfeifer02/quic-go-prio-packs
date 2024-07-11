@@ -83,6 +83,11 @@ type CongestionWindowData struct {
 	PacketsInFlight  int
 }
 
+type PacketNumberMapping struct {
+	OriginalPacketNumber int64
+	NewPacketNumber      int64
+}
+
 var (
 	ALLOW_SETTING_PN                bool                                          = false
 	OMIT_CONN_ID_RETIREMENT         bool                                          = false
@@ -143,6 +148,8 @@ var (
 
 	AckedCache     map[int64]bool = make(map[int64]bool)
 	AckedCacheLock sync.Mutex     = sync.Mutex{}
+
+	PacketOriginatedAtRelay func(pn int64) bool = nil
 )
 
 func DebugPrintln(s ...any) {

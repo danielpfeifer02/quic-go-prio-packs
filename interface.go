@@ -276,6 +276,7 @@ type Connection interface {
 	// BPF_CC_TAG
 	// RegisterBPFPacket registers a BPF packet that was sent by the BPF program.
 	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF)
+	UpdatePacketNumberMapping(packet_setting.PacketNumberMapping)
 
 	// // BPF_CC_TAG
 	// // RETRANSMISSION_TAG

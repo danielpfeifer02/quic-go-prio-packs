@@ -45,6 +45,9 @@ type SentPacketHandler interface {
 	RegisterBPFPacket(packet_setting.PacketRegisterContainerBPF, map[protocol.StreamID]FrameHandler)
 	SetPeerIsSendServer(bool)
 	SetConnection(packet_setting.QuicConnection)
+
+	// BPF_REGISTRATION_TAG
+	UpdatePacketNumberMapping(packet_setting.PacketNumberMapping)
 }
 
 type sentPacketTracker interface {

@@ -563,7 +563,7 @@ func (s *sendStreamAckHandler) OnLost(f wire.Frame) {
 	}
 
 	sf := f.(*wire.StreamFrame)
-	fmt.Println("sendStreamAckHandler: OnLost", sf.StreamID) // TODONOW: why not showing? other OnLost called?
+	// fmt.Println("sendStreamAckHandler: OnLost", sf.StreamID) // TODONOW: why not showing? other OnLost called?
 
 	s.mutex.Lock()
 	if s.cancelWriteErr != nil {

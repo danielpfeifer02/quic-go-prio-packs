@@ -1707,7 +1707,11 @@ func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.Encr
 	// 	return nil
 	// }
 
-	// fmt.Println("Connection handleAckFrame", s.sentPacketHandler)
+	// fmt.Print("Handling ACK frame (")
+	// for _, r := range frame.AckRanges {
+	// 	fmt.Print(r.Smallest, "-", r.Largest, " ")
+	// }
+	// fmt.Println(")")
 
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
@@ -2741,6 +2745,12 @@ func (s *connection) Unlock() {
 	s.mutex.Unlock()
 }
 
+// BPF_RETRANSMISSION_TAG
+func (s *connection) UpdatePacketNumberMapping(mapping packet_setting.PacketNumberMapping) {
+	// fmt.Println("Updating pn from", mapping.OriginalPacketNumber, "to", mapping.NewPacketNumber)
+	s.sentPacketHandler.UpdatePacketNumberMapping(mapping)
+}
+
 // BPF_CC_TAG
 func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
 
@@ -2762,6 +2772,7 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 		panic(err)
 	}
 	if len(stream_frames) == 0 {
+		return
 		panic("No stream frames found in BPF packet")
 	}
 
