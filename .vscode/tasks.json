@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run in Namespace",
+            "type": "shell",
+            "command": "sudo",
+            "args" : [
+                "/usr/local/bin/run_relay.sh"
+            ],
+            // Put these commands into /usr/local/bin/run_relay.sh, make it executable with chmod +x, and add "danpfei02 ALL=(ALL) NOPASSWD: /usr/local/bin/run_relay.sh" to /etc/sudoers using "sudo visudo"
+            // "args": [
+            //     "ip",
+            //     "netns",
+            //     "exec",
+            //     "relay_ns",
+            //     "bash",
+            //     "-c",
+            //     "export PATH=$PATH:/usr/local/go/bin && cd ../../../bpf/ && make clean && make && cd ../go/examples/priority_drop_video/ && go run *.go relay"
+            // ],
+            "options": {
+                "cwd": "/home/danpfei02/Desktop/Technical_University_of_Munich/thesis/Adaptive_MoQ/src/go/examples/priority_drop_video"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Runs the Go application within the relay_ns namespace"
+        }
+    ]
+}
