@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -660,7 +661,7 @@ runLoop:
 			}
 		}
 
-		// fmt.Println("Check for timeout")
+		// //fmt.Println("Check for timeout")
 		now := time.Now()
 		if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
 			// This could cause packets to be retransmitted.
@@ -968,7 +969,7 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	throwaway_parser := *wire.NewFrameParser(s.config.EnableDatagrams)
 
 	// // print bytes in hex format
-	// fmt.Println(hex.Dump(data))
+	// //fmt.Println(hex.Dump(data))
 
 	// for len(data) > 0 { // Only one frame per packet. This is a simplification for now
 	l, frame, err := throwaway_parser.ParseNext(data, protocol.Encryption1RTT, s.version)
@@ -981,7 +982,7 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	data = data[l:]
 
 	if frame == nil {
-		fmt.Println("Frame is nil")
+		//fmt.Println("Frame is nil")
 		return frames, stream_frames, nil // TODO: how to handle correctly
 	}
 
@@ -998,8 +999,8 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 		return nil, nil, errors.New("Datagram")
 	} else {
 		// frames = append(frames, frame)
-		fmt.Println(reflect.TypeOf(frame))
-		panic("For now only stream frames are supported") // TODONOW: handle all frames that can occur
+		fmt.Println("Omitting some frame. For now only stream frames are supported", reflect.TypeOf(frame)) // TODONOW: handle all frames that can occur
+		return frames, stream_frames, nil                                                                   // TODO handle correctly
 	}
 	if len(data) > 0 {
 		panic("Not all data was consumed")
@@ -1521,7 +1522,7 @@ func (s *connection) handlePacket(p receivedPacket) {
 	case s.receivedPackets <- p:
 	default:
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
-			fmt.Println("ONE DOS")
+			//fmt.Println("ONE DOS")
 			s.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.InvalidPacketNumber, p.Size(), logging.PacketDropDOSPrevention)
 		}
 	}
@@ -1585,7 +1586,7 @@ func (s *connection) handleHandshakeEvents() error {
 }
 
 func (s *connection) handleStreamFrame(frame *wire.StreamFrame) error {
-	// fmt.Println(frame.StreamID)
+	// //fmt.Println(frame.StreamID)
 	str, err := s.streamsMap.GetOrOpenReceiveStream(frame.StreamID)
 	if err != nil {
 		return err
@@ -1707,11 +1708,11 @@ func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.Encr
 	// 	return nil
 	// }
 
-	// fmt.Print("Handling ACK frame (")
+	// //fmt.Print("Handling ACK frame (")
 	// for _, r := range frame.AckRanges {
-	// 	fmt.Print(r.Smallest, "-", r.Largest, " ")
+	// 	//fmt.Print(r.Smallest, "-", r.Largest, " ")
 	// }
-	// fmt.Println(")")
+	// //fmt.Println(")")
 
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
@@ -2477,11 +2478,11 @@ func readPriorityFromStream(str PriorityReader) Priority {
 	_, err := str.Read(meta)
 	if err != nil {
 		// panic("Failed to read stream priority when accepting stream")
-		fmt.Println("Failed to read stream priority when accepting stream")
+		//fmt.Println("Failed to read stream priority when accepting stream")
 		return priority_setting.NoPriority
 	}
 	prio := priority_setting.Priority(meta[0])
-	fmt.Println("Internally read priority (1 byte)")
+	//fmt.Println("Internally read priority (1 byte)")
 	return prio
 }
 
@@ -2496,7 +2497,7 @@ func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
 	if err != nil {
 		panic("Failed to write stream priority when opening stream")
 	}
-	fmt.Println("Internally written priority (1 byte)")
+	//fmt.Println("Internally written priority (1 byte)")
 }
 
 // AcceptStream returns the next stream openend by the peer
@@ -2616,7 +2617,7 @@ func (s *connection) tryQueueingUndecryptablePacket(p receivedPacket, pt logging
 	}
 	if len(s.undecryptablePackets)+1 > protocol.MaxUndecryptablePackets {
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
-			fmt.Println("TWO DOS")
+			//fmt.Println("TWO DOS")
 			s.tracer.DroppedPacket(pt, protocol.InvalidPacketNumber, p.Size(), logging.PacketDropDOSPrevention)
 		}
 		s.logger.Infof("Dropping undecryptable packet (%d bytes). Undecryptable packet queue full.", p.Size())
@@ -2651,7 +2652,23 @@ func (s *connection) onHasStreamData(id protocol.StreamID) {
 	if !reflect.DeepEqual(tmp, s.framer) {
 		panic("Framer not the same") // TODONOW: remove
 	}
+
 	s.scheduleSending()
+	return
+
+	// TODO: different behaviour for retranmission of relay???
+	// if !packet_setting.IS_RELAY || s.sendQueue.WouldBlock() { // TODO: idk if this is correct
+	// 	s.scheduleSending()
+	// } else {
+	// 	// old_mode := s.sentPacketHandler.SendMode(time.Now())
+	// 	// fmt.Println(old_mode, "OnLost sendmode")
+	// 	// s.sentPacketHandler.ptoMode =
+	// 	// s.triggerSending(time.Now())
+	// 	err := s.sendPackets(time.Now())
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 }
 
 func (s *connection) onStreamCompleted(id protocol.StreamID) {
@@ -2721,7 +2738,7 @@ func (s *connection) SetPacketNumber(pn int64) {
 	pn_typed := protocol.PacketNumber(pn)
 
 	if !packet_setting.ALLOW_SETTING_PN {
-		fmt.Println("Trying to set packet number when not allowed (connection.go)")
+		//fmt.Println("Trying to set packet number when not allowed (connection.go)")
 		return
 	}
 	sph := s.sentPacketHandler
@@ -2747,7 +2764,7 @@ func (s *connection) Unlock() {
 
 // BPF_RETRANSMISSION_TAG
 func (s *connection) UpdatePacketNumberMapping(mapping packet_setting.PacketNumberMapping) {
-	// fmt.Println("Updating pn from", mapping.OriginalPacketNumber, "to", mapping.NewPacketNumber)
+	// //fmt.Println("Updating pn from", mapping.OriginalPacketNumber, "to", mapping.NewPacketNumber)
 	s.sentPacketHandler.UpdatePacketNumberMapping(mapping)
 }
 
@@ -2762,11 +2779,11 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	// 5. Register the packet with the sent packet handler
 
 	// Set the frames for the packet
-	// fmt.Println("Parse pn", prc.PacketNumber)
+	// //fmt.Println("Parse pn", prc.PacketNumber)
 	_, stream_frames, err := s.parseBPFSavedRawData(prc.RawData)
 	if err != nil {
 		if strings.Contains(err.Error(), "Datagram") {
-			fmt.Println("Ignoring DatagramFrame for registration")
+			//fmt.Println("Ignoring DatagramFrame for registration")
 			return // We ignore datagram packets here since we cannot rule them out earlier (// TODO: we probably could rule them out in the BPF code)
 		}
 		panic(err)
@@ -2780,9 +2797,10 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	prc.StreamFrames = stream_frames
 
 	handler_lut := make(map[protocol.StreamID]ackhandler.FrameHandler)
+	// fmt.Println("Registering BPF packet with", len(stream_frames), "stream frames")
 	for _, sf := range stream_frames {
 
-		// fmt.Println("Debouuuug")
+		// //fmt.Println("Debouuuug")
 		id := sf.StreamID
 		sender := s.streamsMap.GetSender()
 		nfc := s.streamsMap.GetNewFlowController()
@@ -2795,7 +2813,7 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 			// } else {
 			// 	panic("Not a send stream")
 			// }
-			// fmt.Println("Already created stream with id", id)
+			// //fmt.Println("Already created stream with id", id)
 			already_str, err = s.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
 			if err != nil {
 				panic(err)
@@ -2815,9 +2833,10 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 
 			s.streamsMap.AddToStreams(protocol.StreamID(id), str)
 
-			// fmt.Println("Manually created stream with id", id)
+			// //fmt.Println("Manually created stream with id", id)
 			// packet_setting.RetransmissionStreamMap[id] = str
 
+			// fmt.Println("Setting onLost and onAcked")
 			str.overwrittenOnLost = OnLost
 			str.overwrittenOnAcked = OnAcked
 		}
@@ -2840,7 +2859,7 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	// 	cc = s
 	// }
 
-	// fmt.Println("Connection RegisterBPFPacket\n\n\n")
+	// //fmt.Println("Connection RegisterBPFPacket\n\n\n")
 	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
 	s.sentPacketHandler.RegisterBPFPacket(prc, handler_lut)
 
@@ -2850,7 +2869,7 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 		protocol.PacketNumber(prc.PacketNumber), 0, 0, 0, 0, false)
 
 	// DEBUG_TAG
-	// fmt.Println("Check for timeout")
+	// //fmt.Println("Check for timeout")
 	// now := time.Now()
 	// if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
 	// 	// This could cause packets to be retransmitted.
@@ -2868,11 +2887,19 @@ type dummy struct {
 
 var ctr3 = 0
 
-func /*(d *dummy)// */ OnAcked(f wire.Frame) { return; fmt.Println("OnAcked") }
-func /*(d *dummy)// */ OnLost(f wire.Frame, str *sendStream) {
-	// fmt.Println("OnLost")
+func /*(d *dummy)// */ OnAcked(f wire.Frame) {
+	return // TODO: prolly remove payload saved in map
+	fmt.Println("OnAcked")
+}
+func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
+	fmt.Println("OnLost")
+
+	if !packet_setting.IS_RELAY {
+		panic("This code should only be executed on the relay")
+	}
+
 	// fmt.Println("TURN ON ONLOST AGAIN\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
-	return // TODO: remove
+	// return // TODO: remove
 
 	sf := f.(*wire.StreamFrame)
 
@@ -2893,9 +2920,9 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, str *sendStream) {
 	// 	panic(err)
 	// }
 
-	s := (*sendStreamAckHandler)(str)
+	// s := (*sendStreamAckHandler)(str)
 
-	if str.streamID != sf.StreamID {
+	if s.streamID != sf.StreamID {
 		panic("Stream ID mismatch")
 	}
 
@@ -2906,171 +2933,62 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, str *sendStream) {
 	}
 	sf.DataLenPresent = true
 
-	// sf.Data[0] = 0x69 // TODO: remove
+	if len(sf.Data) == 0 {
+		fmt.Println("No data in stream frame") // TODO: why happening?
+		return
+	}
+
+	fmt.Println("Dummy writing OnLost", sf.StreamID, len(sf.Data), s.numOutstandingFrames, reflect.TypeOf(s))
+	fmt.Println(hex.Dump(sf.Data[len(sf.Data)-5:]))
+	// sf.Data[len(sf.Data)-1] = 0x69 // TODO: remove
+	// sf.Data[len(sf.Data)-2] = 0x69 // TODO: remove
+	// sf.Data[len(sf.Data)-3] = 0x69 // TODO: remove
+	// fmt.Println(hex.Dump(sf.Data))
+
+	if true {
+
+		// TODO:
+		// This seems to be a workaround for the problem that the lib does not send retransmissions reliably if i just add them to the retransmission queue
+		// The problem here seems to be that the header needs to be set manually as well - this might even be a good thing since the header flags are dependent
+		// on the data that is sent anyway, e.g. fin flag and a new stream might screw this up.
+		// Things to consider:
+		// header form seem trivial since only short header packets should be considered here (todo: long header packets from setup considered normally already?)
+		// packet number length is fixed to 4 bytes iirc
+		// destination conn id might be tricky? but the connection is known so it should be gettable somehow
+		// packetnumber is known from registration - is it also known here?
+		// payload is obviously known
+
+		conn := s.sender.(*connection)
+
+		datasize := len(sf.Data)
+
+		var pack_buf *packetBuffer
+		if datasize <= protocol.MaxPacketBufferSize {
+			pack_buf = getPacketBuffer()
+		} else if datasize <= protocol.MaxLargePacketBufferSize {
+			pack_buf = getLargePacketBuffer()
+		} else {
+			panic("Packet too large")
+		}
+		pack_buf.Data = pack_buf.Data[:datasize]
+		copy(pack_buf.Data, sf.Data)
+		conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
+
+		s.mutex.Unlock()
+
+		return
+
+	}
 
 	s.retransmissionQueue = append(s.retransmissionQueue, sf)
 
 	s.mutex.Unlock()
 
-	s.sender.onHasStreamData(s.streamID)
+	// fmt.Println(reflect.TypeOf(s.sender), "OnLost")
+	s.sender.onHasStreamData(s.streamID) // TODO: call does not work?
+	// s.sender.(*connection).sendPackets(time.Now()) // TODO: call does not work?
+	// fmt.Println("done in OnLost")
 
-	// fmt.Println("OnLostFlag", sf.StreamID, str.streamID)
+	// //fmt.Println("OnLostFlag", sf.StreamID, str.streamID)
 
 }
-
-/*
-	// str, err := d.conn.OpenUniStreamWithPriority(priority_setting.HighPriority)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	sf := f.(*wire.StreamFrame)
-	// id := sf.StreamID
-	// sender := cc.streamsMap.GetSender()
-	// nfc := cc.streamsMap.GetNewFlowController()
-
-	// if id&0x3 != 0x3 {
-	// 	panic("Only server initialized and uni directional streams are supported")
-	// }
-
-	// if sf.DataLen() == 0 {
-	// 	fmt.Println("No data in stream frame") // TODO: why happening?
-	// 	return
-	// }
-
-	// s := &stream{sender: sender
-	// senderForSendStream := &uniStreamSender{
-	// 	streamSender: sender,
-	// 	onStreamCompletedImpl: func() {
-	// 		s.completedMutex.Lock()
-	// 		s.sendStreamCompleted = true
-	// 		s.checkIfCompleted()
-	// 		s.completedMutex.Unlock()
-	// 	},
-	// }
-
-	data := make([]byte, sf.DataLen())
-	copy(data, sf.Data)
-
-	var str *sendStream
-
-	if true {
-		// if _, ok := packet_setting.RetransmissionStreamMap[id]; ok {
-		// 	// if cast, ok := already_str.(*sendStream); ok {
-		// 	// 	str = cast
-		// 	// } else {
-		// 	// 	panic("Not a send stream")
-		// 	// }
-		// 	// fmt.Println("Already created stream with id", id)
-		// 	already_str, err := d.conn.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-
-		// 	str = already_str.(*sendStream) // TODO: write on closed stream????
-
-		// } else {
-		// 	// TODO: all good with id / num of stream?
-		// 	str = newSendStream(id, *sender, (*nfc)(id))
-		// 	d.conn.streamsMap.AddToStreams(protocol.StreamID(id), str)
-
-		// 	fmt.Println("Manually created stream with id", id)
-		// 	// packet_setting.RetransmissionStreamMap[id] = str
-		// }
-
-		// TODO: where is the best place to call this? (likely before the write?)
-		// if packet_setting.MarkStreamIdAsRetransmission != nil {
-		// 	packet_setting.MarkStreamIdAsRetransmission(uint64(id), d.conn) // TODO: type int64 to uint64 ok?
-		// 	// time.Sleep(2 * time.Millisecond)
-		// }
-
-		// str.nextFrame = sf
-		// d.conn.onHasStreamData(protocol.StreamID(id))
-		dumdum := /*sf.Data //_* / []byte{0x69, 0x69, 0x69, 0x69}
-
-		// TODO: remove (this is just for easier debugging)
-		// dumdum[100] = byte(0x02) // Some wireshark debugging stuff
-
-		ctr3++
-		fmt.Println("OnLost", ctr3)
-		w, e1 := str.Write(dumdum)
-		if e1 != nil {
-			panic(e1)
-		}
-		if w != len(dumdum) {
-			panic("Not all bytes writtenv 69")
-		}
-
-		// if sf.Fin {
-		err := str.Close() // TODO: does this also remove the stream from the active streams?
-		if err != nil {
-			panic(err)
-		}
-		// }
-
-		// packet_setting.Debug
-		fmt.Println(hex.Dump(dumdum))
-		// TODO: based on this and wireshark the packets still dont seem to be retransmitted
-		// TODO: correctly :(
-
-	} else {
-
-		// packet_setting.DebugPrintln("BBBB onLost", &cc.framer)
-
-		// str2, err := cc.OpenUniStreamWithPriority(priority_setting.HighPriority) //d.conn.
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// damdam := []byte{0x42, 0x42, 0x42, 0x42}
-		// w, e2 := str2.Write(damdam)
-		// if e2 != nil {
-		// 	panic(e2)
-		// }
-		// if w != len(damdam) {
-		// 	panic("Not all bytes written 42")
-		// }
-
-		// ctr++
-		// err = str2.Close()
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// TODO: now i get an error for inconsistent final offset which makes sense again because the client already
-		// TODO: received the stream with the id for a frame and now receives a second time this stream
-
-		// TODO: if i make it conditional that only the server sends payloads split into separate frames
-		// TODO: I might be able to avoid the problem that an ealry "return pl" causes in packet_packer.go
-
-		// TODO: multiple questsions popped up:
-		// TODO: 1. how can i make sure all the streams that are opened are closed once they are not needed anymore?
-		// TODO: 2. how to handle the errors that come up based on the final size of the stream?
-		// TODO:    (for now its hacky with a "turnofffornow" flag - remove that one!)
-
-		// TODO: seems like i need to add a translation back for the ping frames since they are not acked
-	}
-	// cc.sendPackets(time.Now())
-
-	// fmt.Println(hex.Dump(data))
-	// fmt.Println("debugmask", sf.StreamID, ctr)
-
-	if false {
-		// str.WriteFinConsidering([]byte{0x69, 0x69, 0x69, 0x69}, false, sf)
-
-		written, err := str.WriteFinConsidering(data, true, sf) // TODO: not right i believe - even if fin frame is retransmitted it could be further broken down?
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Written", written, "bytes")
-
-		// panic("debug")
-		// if sf.Fin {
-		// 	str.Close()
-		// }
-	} else {
-		// d.conn.SendDatagram(data)
-	}
-}
-
-// var cc *connection = nil
-// var ctr = 0
-//*/

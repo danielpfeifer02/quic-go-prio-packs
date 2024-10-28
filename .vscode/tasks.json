@@ -4,10 +4,16 @@
         {
             "label": "Run in Namespace",
             "type": "shell",
-            "command": "sudo",
-            "args" : [
-                "/usr/local/bin/run_relay.sh"
-            ],
+
+            "command": "bash",
+            "args": ["-c", "export PATH=$PATH:/usr/local/go/bin && cd ../../../bpf/ && make clean && make && cd ../go/examples/priority_drop_video/"],
+
+            // "command": "sudo",
+            // "args" : [
+            //      "/usr/local/bin/run_relay.sh"
+            // ],
+
+
             // Put these commands into /usr/local/bin/run_relay.sh, make it executable with chmod +x, and add "danpfei02 ALL=(ALL) NOPASSWD: /usr/local/bin/run_relay.sh" to /etc/sudoers using "sudo visudo"
             // "args": [
             //     "ip",

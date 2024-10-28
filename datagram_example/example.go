@@ -39,7 +39,7 @@ func main() {
 
 	// expect one argument: "server" or "client"
 	if len(os.Args) != 2 {
-		fmt.Println("Usage: go run example.go server|client")
+		//fmt.Println("Usage: go run example.go server|client")
 		return
 	}
 
@@ -60,7 +60,7 @@ func main() {
 			panic(err)
 		}
 	} else {
-		fmt.Println("Usage: go run example.go server|client")
+		//fmt.Println("Usage: go run example.go server|client")
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -87,7 +87,7 @@ func echoServer() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("	>>Server: Got '%s'\n", string(data))
+		//fmt.Printf("	>>Server: Got '%s'\n", string(data))
 		err = conn.SendDatagramWithPriority([]byte(data), PRIO_S)
 		// err = conn.SendDatagram([]byte(data))
 		if err != nil {
@@ -121,7 +121,7 @@ func clientMain() error {
 
 	for i := 1; i <= NUM_MESSAGES; i++ {
 
-		fmt.Printf("	>>Client: Sending '%s%d'\n", message, i)
+		//fmt.Printf("	>>Client: Sending '%s%d'\n", message, i)
 
 		err := conn.SendDatagramWithPriority([]byte(message+fmt.Sprintf("%d", i)), PRIO_C)
 		// err := conn.SendDatagram([]byte(message + fmt.Sprintf("%d", i)))
@@ -132,7 +132,7 @@ func clientMain() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("	>>Client: Got '%s'\n\n", buf)
+		//fmt.Printf("	>>Client: Got '%s'\n\n", buf)
 
 	}
 

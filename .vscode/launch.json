@@ -6,9 +6,10 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
-            "args": ["*.go", "relay"],
-            "preLaunchTask": "Run in Namespace"
+            "program": "../Adaptive_MoQ/src/go/examples/priority_drop_video",
+            "args": ["relay"],
+            "preLaunchTask": "Run in Namespace",
+            "cwd": "${workspaceFolder}/../Adaptive_MoQ/src/go/example/priority_drop_video"
         }
     ]
 }

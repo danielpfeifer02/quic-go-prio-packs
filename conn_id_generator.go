@@ -60,7 +60,7 @@ func (m *connIDGenerator) SetMaxActiveConnIDs(limit uint64) error {
 		// < 	ensures that for each priority we have at least one connection ID
 		// != 	would ensure that there is *exactly* one connection ID for each priority
 		if limit < uint64(numberOfPriorities) {
-			fmt.Println("WARNING: active_connection_id_limit is smaller than the number of priorities. Set to the number of priorities.")
+			//fmt.Println("WARNING: active_connection_id_limit is smaller than the number of priorities. Set to the number of priorities.")
 			limit = uint64(numberOfPriorities)
 		}
 		if protocol.MaxIssuedConnectionIDs < uint64(numberOfPriorities) {

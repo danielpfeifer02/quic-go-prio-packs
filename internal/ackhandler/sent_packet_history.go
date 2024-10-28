@@ -90,7 +90,7 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 	// lock := &sync.Mutex{}
 
 	p_in.SendTime = time.Now()
-	// fmt.Println("Set sendtime to", p_in.SendTime.UnixNano()) // TODONOW: fix issue with sendtime
+	// //fmt.Println("Set sendtime to", p_in.SendTime.UnixNano()) // TODONOW: fix issue with sendtime
 	p_in.IsBPFRegisteredPacket = true // &&
 
 	pn := p_in.PacketNumber
@@ -115,7 +115,7 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 				h.highestPacketNumber = pn
 			}
 
-			// fmt.Println("BPF packet inserted at position", i, "with history of length", len(h.packets))
+			// //fmt.Println("BPF packet inserted at position", i, "with history of length", len(h.packets))
 			return
 
 		}
@@ -194,13 +194,13 @@ func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterConta
 	// 			h.highestPacketNumber = pn
 	// 		}
 
-	// 		fmt.Println("BPF packet inserted at position", i)
+	// 		//fmt.Println("BPF packet inserted at position", i)
 	// 		return
 
 	// 	}
 	// 	// }(p, i, lock) // TODONOW: use go routine with lock?
 	// }
-	// fmt.Println("This should not happen")
+	// //fmt.Println("This should not happen")
 }
 
 // Iterate iterates through all packets.
@@ -238,7 +238,7 @@ func (h *sentPacketHistory) Len() int {
 }
 
 func (h *sentPacketHistory) Remove(pn protocol.PacketNumber) error {
-	// fmt.Println("Removing packet", pn)
+	// //fmt.Println("Removing packet", pn)
 	idx, ok := h.getIndex(pn)
 	if !ok { // Potentially we have to wait until the packet is registered
 
@@ -413,7 +413,7 @@ func (h *sentPacketHistory) UpdatePacketNumberMapping(mapping packet_setting.Pac
 			}
 			p.SendTime = time.Now() // time.Unix(0, 1<<63-1) // TODO: remove
 			h.packets = append(history_without[:index_for_insertion], append([]*packet{p}, history_without[index_for_insertion:]...)...)
-			// fmt.Printf("Packet number mapping updated (%d->%d)\n", mapping.OriginalPacketNumber, mapping.NewPacketNumber)
+			// //fmt.Printf("Packet number mapping updated (%d->%d)\n", mapping.OriginalPacketNumber, mapping.NewPacketNumber)
 			h.translation_map[protocol.PacketNumber(mapping.NewPacketNumber)] = protocol.PacketNumber(mapping.OriginalPacketNumber)
 			return
 		}

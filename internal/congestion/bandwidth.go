@@ -21,6 +21,6 @@ const (
 
 // BandwidthFromDelta calculates the bandwidth from a number of bytes and a time delta
 func BandwidthFromDelta(bytes protocol.ByteCount, delta time.Duration) Bandwidth {
-	// fmt.Println("BandwidthFromDelta", bytes, delta)
+	// //fmt.Println("BandwidthFromDelta", bytes, delta)
 	return Bandwidth(bytes) * Bandwidth(time.Second) / Bandwidth(delta) * BytesPerSecond
 }

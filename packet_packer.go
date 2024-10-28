@@ -438,7 +438,7 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 				f := &oneRTTPayload.streamFrames[i]
 				sid := f.Frame.StreamID
 				prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
-				// fmt.Printf("stream with id %d has priority %d (coalesced)\n", sid, prio_tmp)
+				// //fmt.Printf("stream with id %d has priority %d (coalesced)\n", sid, prio_tmp)
 				prio = max(prio, prio_tmp)
 			}
 
@@ -560,7 +560,7 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 		f := &pl.streamFrames[i]
 		sid := f.Frame.StreamID
 		prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
-		// fmt.Printf("stream with id %d has priority %d (append)\n", sid, prio_tmp)
+		// //fmt.Printf("stream with id %d has priority %d (append)\n", sid, prio_tmp)
 		prio = max(prio, prio_tmp)
 	}
 
@@ -719,7 +719,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			hasAck = true
 
 			// STREAM_ONLY_TAG // TODO: make sure streams are always sent in a separate packet
-			// fmt.Println("ACK frame added to packet", ack.LargestAcked(), ack.LowestAcked())
+			// //fmt.Println("ACK frame added to packet", ack.LargestAcked(), ack.LowestAcked())
 			return pl
 		}
 	}
@@ -757,7 +757,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 
 	if hasRetransmission { //&& !lastWasRetransmit { //TODO lastWasRetransmit is a hacky way for debugging
 		// DEBUG_TAG
-		// fmt.Println("if hasRetransmission {")
+		// //fmt.Println("if hasRetransmission {")
 		lastWasRetransmit = true
 		for {
 			remainingLen := maxFrameSize - pl.length
@@ -778,7 +778,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			// TODO: only leave early if its the right connection and bpf stuff is enabled
 
 			if _, ok := f.(*wire.StreamFrame); ok {
-				fmt.Println("Retransmission of a stream frame with length ", pl.length, " and data ", f.(*wire.StreamFrame).Data)
+				//fmt.Println("Retransmission of a stream frame with length ", pl.length, " and data ", f.(*wire.StreamFrame).Data)
 			}
 			if p.connection.LocalAddr().String() == packet_setting.SERVER_ADDR {
 				return pl // TODO: why does this cause non-sending of other data? (without lastWasRetransmit)
@@ -822,12 +822,12 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		lastWasRetransmit = false // TODO: remove
 	} /*else {
 		if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR {
-			fmt.Println(p.connection.RemoteAddr().String(), "has no data (DEBUG)")
+			//fmt.Println(p.connection.RemoteAddr().String(), "has no data (DEBUG)")
 		}
 	} //*/
 
 	// DEBUG_TAG
-	// fmt.Println("Sending packet with length ", pl.length)
+	// //fmt.Println("Sending packet with length ", pl.length)
 
 	// if packet_setting.StoreRelayPacket != nil && // TODONOW: remove
 	// 	p.connection.LocalAddr().String() == packet_setting.RELAY_ADDR &&
@@ -837,15 +837,21 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 
 	// 	pl_bytes := make([]byte, pl.length)
 	// 	for _, f := range pl.frames {
-	// 		fmt.Println("control frames not supported (%v)", reflect.TypeOf(f.Frame))
+	// 		//fmt.Println("control frames not supported (%v)", reflect.TypeOf(f.Frame))
 	// 		panic("control frames not supported")
 	// 	}
 	// 	for _, sf := range pl.streamFrames {
 	// 		pl_bytes = append(pl_bytes, sf.Frame.Data...)
 	// 	}
 
-	// 	fmt.Println("ComposeNextPacket: ", hex.Dump(pl_bytes))
+	// 	//fmt.Println("ComposeNextPacket: ", hex.Dump(pl_bytes))
 	// }
+
+	if packet_setting.IS_RELAY {
+		for _, f := range pl.streamFrames {
+			packet_setting.RetransmitDebug(f.Frame.Data)
+		}
+	}
 
 	return pl
 }
@@ -1149,7 +1155,7 @@ func (p *packetPacker) appendPacketPayload(raw []byte, pl payload, paddingLen pr
 	// 		len(pl.streamFrames) > 1 {
 	// 		panic(">0")
 	// 	} else {
-	// 		fmt.Println("All good")
+	// 		//fmt.Println("All good")
 	// 	}
 	// }
 

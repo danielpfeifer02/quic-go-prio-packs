@@ -68,7 +68,7 @@ func newPacketNumberSpace(initialPN protocol.PacketNumber, skipPNs bool) *packet
 func (h *packetNumberSpace) updateLargestSent() {
 	pn := h.history.largestSent
 	if pn > h.largestSent {
-		fmt.Println("updateLargestSent with pn", pn)
+		//fmt.Println("updateLargestSent with pn", pn)
 		h.largestSent = pn
 	}
 }
@@ -396,22 +396,22 @@ func (h *sentPacketHandler) RegisterBPFPacket(prc packet_setting.PacketRegisterC
 	// pn := protocol.PacketNumber(prc.PacketNumber)
 	// if pn > h.appDataPackets.largestSent {
 	// 	h.appDataPackets.largestSent = pn
-	// 	// fmt.Println("RegisterBPFPacket: setting largestSent to", pn)
+	// 	// //fmt.Println("RegisterBPFPacket: setting largestSent to", pn)
 	// }
 
-	// // fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
+	// // //fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
 	// if h.appDataPackets != nil && h.appDataPackets.history != nil {
 
-	// 	// fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
+	// 	// //fmt.Println("RegisterBPFPacket with pn", prc.PacketNumber, "at", prc.SentTime, "and length", prc.Length)
 	// 	go func() {
 	// 		h.appDataPackets.history.SentBPFPacket(prc, h.appDataPackets)
 	// 		h.setLossDetectionTimer()
 	// 	}()
 	// }
 
-	// // fmt.Println(prc.SentTime)
+	// // //fmt.Println(prc.SentTime)
 	// tm := time.Unix(0, prc.SentTime)
-	// // fmt.Println("Time:", tm)
+	// // //fmt.Println("Time:", tm)
 	// ln := protocol.ByteCount(prc.Length)
 	// // BPF packets are not retransmittable, since they are only redirected to the BPF program.
 	// go h.congestion.OnPacketSent(tm, h.bytesInFlight, pn, ln, true)
@@ -436,7 +436,7 @@ func (h *sentPacketHandler) SentPacket(
 	isPathMTUProbePacket bool,
 ) {
 
-	// fmt.Println("Sent Packet with pn", pn, encLevel)
+	// //fmt.Println("Sent Packet with pn", pn, encLevel)
 
 	h.bytesSent += size
 
@@ -494,7 +494,7 @@ func (h *sentPacketHandler) SentPacket(
 		h.tracer.UpdatedMetrics(h.rttStats, h.congestion.GetCongestionWindow(), h.bytesInFlight, h.packetsInFlight())
 	}
 
-	// fmt.Println("CongestionWindow:", h.congestion.GetCongestionWindow(), "BytesInFlight:", h.bytesInFlight, "PacketsInFlight:", h.packetsInFlight())
+	// //fmt.Println("CongestionWindow:", h.congestion.GetCongestionWindow(), "BytesInFlight:", h.bytesInFlight, "PacketsInFlight:", h.packetsInFlight())
 	h.setLossDetectionTimer()
 
 	// BPF_CC_TAG
@@ -544,7 +544,7 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 	// 	// // TODONOW
 	// 	// pnSpace.updateLargestSent()
 	// 	// largestAcked = ack.LargestAcked() // TODONOW: can this even be different?
-	// 	// fmt.Println("largestSent is", pnSpace.largestSent, "and largestAcked is", largestAcked)
+	// 	// //fmt.Println("largestSent is", pnSpace.largestSent, "and largestAcked is", largestAcked)
 
 	// 	max_iterations := 128 // TODONOW: somehow, however big this is there are cases where largestAcked > largestSent
 	// 	for i := 0; i < max_iterations; i++ {
@@ -569,11 +569,11 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 		}
 	}
 
-	// fmt.Print("ReceiveAck ")
+	// //fmt.Print("ReceiveAck ")
 	// for _, r := range ack.AckRanges {
-	// 	fmt.Print(r.Smallest, "-", r.Largest, " ")
+	// 	//fmt.Print(r.Smallest, "-", r.Largest, " ")
 	// }
-	// fmt.Println("with largestAcked", largestAcked, "and largestSent", pnSpace.largestSent, "and EncLevel", encLevel)
+	// //fmt.Println("with largestAcked", largestAcked, "and largestSent", pnSpace.largestSent, "and EncLevel", encLevel)
 
 	if largestAcked > pnSpace.largestSent {
 		return false, &qerr.TransportError{
@@ -706,16 +706,16 @@ func (h *sentPacketHandler) detectAndRemoveAckedPackets(ack *wire.AckFrame, encL
 		// 	panic("debug") // TODONOW: remove
 		// }
 
-		// fmt.Print("Checking packet ", p.PacketNumber, " ")
+		// //fmt.Print("Checking packet ", p.PacketNumber, " ")
 
 		// Ignore packets below the lowest acked
 		if p.PacketNumber < lowestAcked {
-			// fmt.Println("below lowest acked")
+			// //fmt.Println("below lowest acked")
 			return true, nil // TODO: !! this causes the issue with the non acking of some packets -> why???
 		}
 		// Break after largest acked is reached
 		if p.PacketNumber > largestAcked {
-			// fmt.Println("above largest acked")
+			// //fmt.Println("above largest acked")
 			return false, nil
 		}
 
@@ -728,17 +728,17 @@ func (h *sentPacketHandler) detectAndRemoveAckedPackets(ack *wire.AckFrame, encL
 			}
 
 			if p.PacketNumber < ackRange.Smallest { // packet not contained in ACK range
-				// fmt.Println("below smallest in ACK range")
+				// //fmt.Println("below smallest in ACK range")
 				return true, nil
 			}
 			if p.PacketNumber > ackRange.Largest {
-				// fmt.Println("above largest in ACK range")
+				// //fmt.Println("above largest in ACK range")
 				return false, fmt.Errorf("BUG: ackhandler would have acked wrong packet %d, while evaluating range %d -> %d", p.PacketNumber, ackRange.Smallest, ackRange.Largest)
 			}
 		}
 		// TODONOW
 		if p.skippedPacket {
-			// fmt.Println("skipped packet")
+			// //fmt.Println("skipped packet")
 			return false, &qerr.TransportError{
 				ErrorCode: qerr.ProtocolViolation,
 				// PACKET_NUMBER_TAG
@@ -747,7 +747,7 @@ func (h *sentPacketHandler) detectAndRemoveAckedPackets(ack *wire.AckFrame, encL
 			}
 		}
 		h.ackedPackets = append(h.ackedPackets, p)
-		// fmt.Println("acked")
+		// //fmt.Println("acked")
 		return true, nil
 	})
 	if h.logger.Debug() && len(h.ackedPackets) > 0 {
@@ -935,7 +935,7 @@ func (h *sentPacketHandler) wasAcked(pn protocol.PacketNumber, encLevel protocol
 func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.EncryptionLevel) error {
 
 	// DEBUG_TAG
-	// fmt.Println("detectLostPackets")
+	// //fmt.Println("detectLostPackets")
 
 	pnSpace := h.getPacketNumberSpace(encLevel)
 	pnSpace.lossTime = time.Time{}
@@ -952,13 +952,13 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 	// Packets sent before this time are deemed lost.
 	lostSendTime := now.Add(-lossDelay)
 
-	// fmt.Println("Lenght of history:", pnSpace.history.Len())
+	// //fmt.Println("Lenght of history:", pnSpace.history.Len())
 
 	priorInFlight := h.bytesInFlight
 	return pnSpace.history.Iterate(func(p *packet) (bool, error) {
 
 		// DEBUG_TAG
-		// fmt.Println("Largest Acked:", pnSpace.largestAcked,
+		// //fmt.Println("Largest Acked:", pnSpace.largestAcked,
 		// 	"Packet Number:", p.PacketNumber,
 		// 	"Threshold:", packetThreshold)
 
@@ -981,10 +981,10 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 			// No idea why this seems to be necessary.
 			was_acked := h.wasAcked(p.PacketNumber, encLevel)
 			if !was_acked {
-				_, already_translated := pnSpace.history.translation_map[p.PacketNumber]
+				// _, already_translated := pnSpace.history.translation_map[p.PacketNumber]
 				packetLost = true
-				diff := (p.SendTime.UnixNano() - lostSendTime.UnixNano())
-				fmt.Println("SendTime.Before(lostSendTime)", p.PacketNumber, p.SendTime.UnixNano(), diff, p.IsBPFRegisteredPacket, encLevel, already_translated)
+				// diff := (p.SendTime.UnixNano() - lostSendTime.UnixNano())
+				// fmt.Println("SendTime.Before(lostSendTime)", p.PacketNumber, p.SendTime.UnixNano(), diff, p.IsBPFRegisteredPacket, encLevel, already_translated)
 				if !p.skippedPacket {
 					if h.logger.Debug() {
 						h.logger.Debugf("\tlost packet %d (time threshold)", p.PacketNumber)
@@ -1002,7 +1002,7 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 			!packet_setting.BPF_TURNED_ON { // TODONOW: just turn off for bpf packets since they can be registered out of order
 
 			packetLost = true
-			fmt.Println("largestAcked >= p.PacketNumber+packetThreshold", pnSpace.largestAcked, p.PacketNumber+packetThreshold)
+			//fmt.Println("largestAcked >= p.PacketNumber+packetThreshold", pnSpace.largestAcked, p.PacketNumber+packetThreshold)
 			if !p.skippedPacket {
 				if h.logger.Debug() {
 					h.logger.Debugf("\tlost packet %d (reordering threshold)", p.PacketNumber)
@@ -1021,7 +1021,7 @@ func (h *sentPacketHandler) detectLostPackets(now time.Time, encLevel protocol.E
 		}
 		if packetLost {
 			// DEBUG_TAG
-			fmt.Println("Packet Lost")
+			//fmt.Println("Packet Lost")
 			pnSpace.history.DeclareLost(p.PacketNumber)
 			if !p.skippedPacket {
 				// the bytes in flight need to be reduced no matter if the frames in this packet will be retransmitted
@@ -1336,7 +1336,7 @@ func (h *sentPacketHandler) SetHandshakeConfirmed() {
 // PACKET_NUMBER_TAG
 func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
 	if !packet_setting.ALLOW_SETTING_PN {
-		fmt.Println("Trying to set packet number when not allowed (sent_packet_handler.go)")
+		//fmt.Println("Trying to set packet number when not allowed (sent_packet_handler.go)")
 		return
 	}
 
@@ -1345,7 +1345,7 @@ func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
 	// Check type of generator
 	settableType := &settablePacketNumberGenerator{}
 	if reflect.TypeOf(gen) != reflect.TypeOf(settableType) {
-		fmt.Println("Trying to set packet number for generator of wrong type (sent_packet_handler.go)")
+		//fmt.Println("Trying to set packet number for generator of wrong type (sent_packet_handler.go)")
 		return
 	}
 	gen.(*settablePacketNumberGenerator).SetPacketNumber(pn)
@@ -1353,7 +1353,7 @@ func (h *sentPacketHandler) SetPacketNumber(pn protocol.PacketNumber) {
 
 func (h *sentPacketHandler) SetHighestSentPacketNumber(pn protocol.PacketNumber) {
 	if !packet_setting.ALLOW_SETTING_PN {
-		fmt.Println("Trying to set highest sent packet number when not allowed (sent_packet_handler.go)")
+		//fmt.Println("Trying to set highest sent packet number when not allowed (sent_packet_handler.go)")
 		return
 	}
 
@@ -1378,13 +1378,13 @@ func (h *sentPacketHandler) UpdatePacketNumberMapping(mapping packet_setting.Pac
 		return
 	}
 
-	enclevels := []protocol.EncryptionLevel{protocol.EncryptionInitial, protocol.EncryptionHandshake, protocol.Encryption1RTT}
-	for i, pnSpace := range []*packetNumberSpace{h.initialPackets, h.handshakePackets, h.appDataPackets} {
+	// enclevels := []protocol.EncryptionLevel{protocol.EncryptionInitial, protocol.EncryptionHandshake, protocol.Encryption1RTT}
+	for _, pnSpace := range []*packetNumberSpace{h.initialPackets, h.handshakePackets, h.appDataPackets} {
 		if pnSpace == nil {
 			continue
 		}
 		if false { // TODO: remove
-			fmt.Println("Updating packet number mapping for", enclevels[i])
+			// fmt.Println("Updating packet number mapping for", enclevels[i])
 		}
 		pnSpace.history.UpdatePacketNumberMapping(mapping)
 	}

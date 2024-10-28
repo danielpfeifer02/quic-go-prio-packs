@@ -2,7 +2,6 @@ package quic
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -60,7 +59,7 @@ type sendStream struct {
 	priority priority_setting.Priority
 
 	// RETRANSMISSION_TAG
-	overwrittenOnLost  func(wire.Frame, *sendStream)
+	overwrittenOnLost  func(wire.Frame, *sendStreamAckHandler)
 	overwrittenOnAcked func(wire.Frame)
 }
 
@@ -144,8 +143,8 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 		if s.canBufferStreamFrame() && len(s.dataForWriting) > 0 {
 
 			// if packet_setting.IS_RELAY {
-			// 	fmt.Println("Test-------------------------------------------------")
-			// 	fmt.Println(hex.Dump(s.dataForWriting))
+			// 	//fmt.Println("Test-------------------------------------------------")
+			// 	//fmt.Println(hex.Dump(s.dataForWriting))
 			// }
 
 			if s.nextFrame == nil {
@@ -203,11 +202,11 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 		if !notifiedSender {
 			s.sender.onHasStreamData(s.streamID) // must be called without holding the mutex
 			notifiedSender = true
-			// fmt.Println("notifiedSender-----------------------------------------")
+			// //fmt.Println("notifiedSender-----------------------------------------")
 		}
 		if copied {
 			s.mutex.Lock()
-			// fmt.Println("break copied") // TODONOW: remove
+			// //fmt.Println("break copied") // TODONOW: remove
 			break
 		}
 		if deadline.IsZero() {
@@ -220,7 +219,7 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 			}
 		}
 		s.mutex.Lock()
-		fmt.Println("Not written in one take") // TODONOW: remove
+		//fmt.Println("Not written in one take") // TODONOW: remove
 	}
 
 	if bytesWritten == len(p) {
@@ -250,7 +249,7 @@ func (s *sendStream) popStreamFrame(maxBytes protocol.ByteCount, v protocol.Vers
 
 	if f != nil {
 		s.numOutstandingFrames++
-		packet_setting.DebugPrintln(hex.Dump(f.Data))
+		// packet_setting.DebugPrintln(hex.Dump(f.Data))
 	}
 	s.mutex.Unlock()
 
@@ -277,9 +276,9 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 			}
 
 			if f.Data[0] == 0x69 { // TODONOW: remove
-				fmt.Println("popNewOrRetransmittedStreamFrame: retransmissionQueue")
+				//fmt.Println("popNewOrRetransmittedStreamFrame: retransmissionQueue")
 			} else {
-				fmt.Println("Userspace retransmissionQueue")
+				//fmt.Println("Userspace retransmissionQueue")
 			}
 			// We always claim that we have more data to send.
 			// This might be incorrect, in which case there'll be a spurious call to popStreamFrame in the future.
@@ -323,7 +322,7 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 	}
 
 	if f.Data[0] == 0x69 {
-		fmt.Println("popNewOrRetransmittedStreamFrame: popNewStreamFrame") // TODONOW: remove
+		//fmt.Println("popNewOrRetransmittedStreamFrame: popNewStreamFrame") // TODONOW: remove
 	}
 	return f, hasMoreData
 }
@@ -508,7 +507,7 @@ func (s *sendStream) closeForShutdown(err error) {
 func (s *sendStream) signalWrite() {
 	select {
 	case s.writeChan <- struct{}{}:
-		// fmt.Println("signalWrite", hex.Dump(s.nextFrame.Data[:10])) // TODONOW: remove
+		// //fmt.Println("signalWrite", hex.Dump(s.nextFrame.Data[:10])) // TODONOW: remove
 	default:
 	}
 }
@@ -558,12 +557,12 @@ func (s *sendStreamAckHandler) OnAcked(f wire.Frame) {
 func (s *sendStreamAckHandler) OnLost(f wire.Frame) {
 
 	if s.overwrittenOnLost != nil {
-		s.overwrittenOnLost(f, (*sendStream)(s))
+		s.overwrittenOnLost(f, s)
 		return
 	}
 
 	sf := f.(*wire.StreamFrame)
-	// fmt.Println("sendStreamAckHandler: OnLost", sf.StreamID) // TODONOW: why not showing? other OnLost called?
+	// //fmt.Println("sendStreamAckHandler: OnLost", sf.StreamID) // TODONOW: why not showing? other OnLost called?
 
 	s.mutex.Lock()
 	if s.cancelWriteErr != nil {

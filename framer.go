@@ -2,7 +2,6 @@ package quic
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/ackhandler"
@@ -122,7 +121,7 @@ func (f *framerI) AddActiveStream(id protocol.StreamID) {
 		f.activeStreams[id] = struct{}{}
 	} /*else if packet_setting.BPF_PACKET_RETRANSMISSION {
 		f.streamQueue.PushBack(id)
-		fmt.Println("BBBB temporary solution", f.streamQueue.Len())
+		//fmt.Println("BBBB temporary solution", f.streamQueue.Len())
 	}//*/
 
 	packet_setting.DebugPrintln("BBBB id", id, "has data", f.streamQueue.Len(), &f)
@@ -145,7 +144,7 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 		} else {
 			packet_setting.DebugPrintln(tc, "no active streams (DEBUG)")
 		}
-		// fmt.Println("BBBB call popStreamFrame", &f, numActiveStreams) // TODO: remove all this
+		// //fmt.Println("BBBB call popStreamFrame", &f, numActiveStreams) // TODO: remove all this
 	}
 
 	// SINGLE_STREAM_TAG
@@ -183,7 +182,7 @@ func (f *framerI) AppendStreamFrames(frames []ackhandler.StreamFrame, maxLen pro
 			continue
 		}
 		if len(frame.Frame.Data) > 0 && frame.Frame.Data[0] == 0x69 { // TODO: if the retransmisison frame gets here it is sent out correctly. Why do some not get here?
-			fmt.Println("this should happen", frame.Frame.StreamID, len(frame.Frame.Data), frame.Frame.Data[1])
+			//fmt.Println("this should happen", frame.Frame.StreamID, len(frame.Frame.Data), frame.Frame.Data[1])
 		}
 		frames = append(frames, frame)
 		length += frame.Frame.Length(v)

@@ -31,7 +31,7 @@ func main() {
 
 	// check that there is an argument
 	if len(os.Args) != 2 {
-		fmt.Println("Usage: go run example.go server|client")
+		//fmt.Println("Usage: go run example.go server|client")
 		return
 	}
 
@@ -52,7 +52,7 @@ func main() {
 			panic(err)
 		}
 	} else {
-		fmt.Println("Usage: go run example.go server|client")
+		//fmt.Println("Usage: go run example.go server|client")
 		return
 	}
 }
@@ -78,12 +78,12 @@ func echoServer() error {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Printf("	>>Server: Got '%s'\n", string(buf))
+			//fmt.Printf("	>>Server: Got '%s'\n", string(buf))
 			err = conn.SendDatagram(buf)
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("	>>Server: Echoing via datagram")
+			//fmt.Println("	>>Server: Echoing via datagram")
 		}
 	}()
 
@@ -114,7 +114,7 @@ func echoServer() error {
 }
 
 func ListenAndRepeat(stream quic.Stream) {
-	fmt.Println("Echo up and running")
+	//fmt.Println("Echo up and running")
 	for {
 		// Read and echo the message
 		buf := make([]byte, 1024)
@@ -122,7 +122,7 @@ func ListenAndRepeat(stream quic.Stream) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(buf[:n]))
+		//fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(buf[:n]))
 		_, err = stream.Write(buf)
 		if err != nil {
 			panic(err)
@@ -148,7 +148,7 @@ func clientMain() error {
 		return err
 	}
 	defer stream_high_prio.Close()
-	fmt.Printf("Prio of stream one (clientside): %d\n", stream_high_prio.Priority())
+	//fmt.Printf("Prio of stream one (clientside): %d\n", stream_high_prio.Priority())
 
 	// Open a new stream with low priority
 	stream_low_prio, err := conn.OpenStreamSyncWithPriority(context.Background(), priority_setting.LowPriority)
@@ -156,23 +156,23 @@ func clientMain() error {
 		return err
 	}
 	defer stream_low_prio.Close()
-	fmt.Printf("Prio of stream two (clientside): %d\n", stream_low_prio.Priority())
+	//fmt.Printf("Prio of stream two (clientside): %d\n", stream_low_prio.Priority())
 
 	for {
 
 		// Print info field for the user
-		fmt.Println("What would you like to do?")
-		fmt.Println("1: Send a message with high priority over stream")
-		fmt.Println("2: Send a message with low priority over stream")
-		fmt.Println("3: Send a message with high priority via datagrams")
-		fmt.Println("4: Send a message with low priority via datagrans")
-		fmt.Println("5: Quit")
+		//fmt.Println("What would you like to do?")
+		//fmt.Println("1: Send a message with high priority over stream")
+		//fmt.Println("2: Send a message with low priority over stream")
+		//fmt.Println("3: Send a message with high priority via datagrams")
+		//fmt.Println("4: Send a message with low priority via datagrans")
+		//fmt.Println("5: Quit")
 
 		// Read the user's choice
 		var choice int
 		fmt.Scan(&choice)
 		// clear screen on terminal
-		fmt.Print("\033[H\033[2J")
+		//fmt.Print("\033[H\033[2J")
 
 		var stream quic.Stream
 		var is_stream bool = false
@@ -193,11 +193,11 @@ func clientMain() error {
 		case 5:
 			return nil
 		default:
-			fmt.Println("Invalid choice")
+			//fmt.Println("Invalid choice")
 			continue
 		}
 
-		fmt.Printf("	>>Client: Sending '%s'\n", message)
+		//fmt.Printf("	>>Client: Sending '%s'\n", message)
 
 		var buf []byte
 		var n int
@@ -225,7 +225,7 @@ func clientMain() error {
 			n = len(buf)
 		}
 
-		fmt.Printf("	>>Client: Got '%s'\n\n", buf[:n])
+		//fmt.Printf("	>>Client: Got '%s'\n\n", buf[:n])
 
 	}
 }

@@ -240,7 +240,7 @@ func (f *AckFrame) LowestAcked() protocol.PacketNumber {
 // AcksPacket determines if this ACK frame acks a certain packet number
 func (f *AckFrame) AcksPacket(p protocol.PacketNumber) bool {
 
-	// fmt.Println("AckPacket for pn:", p)
+	// //fmt.Println("AckPacket for pn:", p)
 
 	if p < f.LowestAcked() || p > f.LargestAcked() {
 		return false
@@ -250,7 +250,7 @@ func (f *AckFrame) AcksPacket(p protocol.PacketNumber) bool {
 	i := sort.Search(len(f.AckRanges), func(i int) bool {
 		acks := p >= f.AckRanges[i].Smallest
 		// if acks && packet_setting.IS_RELAY { // TODO: remove
-		// 	fmt.Println("ACKED packet", p, "in range")
+		// 	//fmt.Println("ACKED packet", p, "in range")
 		// 	packet_setting.AckedCacheLock.Lock()
 		// 	packet_setting.AckedCache[int64(p)] = true
 		// 	packet_setting.AckedCacheLock.Unlock()
@@ -260,7 +260,7 @@ func (f *AckFrame) AcksPacket(p protocol.PacketNumber) bool {
 	// i will always be < len(f.AckRanges), since we checked above that p is not bigger than the largest acked
 	acks := p <= f.AckRanges[i].Largest
 	// if acks && packet_setting.IS_RELAY { // TODO: remove
-	// 	fmt.Println("ACKED packet", p, "in range")
+	// 	//fmt.Println("ACKED packet", p, "in range")
 	// 	packet_setting.AckedCacheLock.Lock()
 	// 	packet_setting.AckedCache[int64(p)] = true
 	// 	packet_setting.AckedCacheLock.Unlock()
@@ -299,7 +299,7 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 	removable_indices := make([]int, 0)
 	boundaries_buffer := make([]packet_setting.Range, 0)
 
-	// fmt.Println()
+	// //fmt.Println()
 
 	for i := 0; i < len(f.AckRanges); i++ { // TODONOW: AckRanges are only the ranges of ACKed pns without the gaps right?
 
@@ -342,7 +342,7 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 			}
 		}
 		if err != nil {
-			// fmt.Println("Whole range empty")
+			// //fmt.Println("Whole range empty")
 			removable_indices = append(removable_indices, i)
 			continue
 		}
@@ -379,7 +379,7 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 		packet_setting.RangeTranslationMap[packet_setting.Range{Smallest: int64(smallest), Largest: int64(largest)}] =
 			packet_setting.Range{Smallest: new_smallest, Largest: new_largest}
 
-		// fmt.Println("Translated range: ", smallest, largest, new_smallest, new_largest)
+		// //fmt.Println("Translated range: ", smallest, largest, new_smallest, new_largest)
 		boundaries_buffer = append(boundaries_buffer,
 			packet_setting.Range{Smallest: smallest_translated, Largest: largest_translated})
 

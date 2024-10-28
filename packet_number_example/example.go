@@ -89,7 +89,7 @@ func echoServer() error {
 			panic(err)
 		}
 
-		fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(buf))
+		//fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(buf))
 		_, err = stream.Write(buf)
 		if err != nil {
 			panic(err)
@@ -101,41 +101,41 @@ func echoServer() error {
 	}
 
 	connid := conn.GetDestConnID(stream)
-	fmt.Println("Connection ID: ", connid.String())
+	//fmt.Println("Connection ID: ", connid.String())
 
 	return nil
 }
 
 func ackHandler(pn int64, conn packet_setting.QuicConnection) (int64, error) {
-	fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
+	//fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
 	return pn, nil
 }
 
 func updateBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
-	fmt.Println("Update BPF Handler called")
+	//fmt.Println("Update BPF Handler called")
 }
 
 func initiationBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
 	qconn := conn.(quic.Connection)
-	fmt.Println("create id with length: ", len(id), "from", qconn.RemoteAddr().String())
+	//fmt.Println("create id with length: ", len(id), "from", qconn.RemoteAddr().String())
 
-	// fmt.Println("Initiation BPF Handler called")
+	// //fmt.Println("Initiation BPF Handler called")
 	// liste = append(liste, counter)
-	// fmt.Printf("Adding %d to the list\n", counter)
+	// //fmt.Printf("Adding %d to the list\n", counter)
 	// counter++
 }
 
 func retirementBPFHandler(id []byte, l uint8, conn packet_setting.QuicConnection) {
 	qconn := conn.(quic.Connection)
-	fmt.Println("retire id with length: ", len(id), "from", qconn.RemoteAddr().String())
-	// fmt.Println("Retirement BPF Handler called")
-	// fmt.Printf("Removing %d from the list\n", liste[0])
+	//fmt.Println("retire id with length: ", len(id), "from", qconn.RemoteAddr().String())
+	// //fmt.Println("Retirement BPF Handler called")
+	// //fmt.Printf("Removing %d from the list\n", liste[0])
 	// liste = liste[1:]
 }
 
 func packetNumberBPFHanlder(pn int64, conn packet_setting.QuicConnection) {
 	// TODO: pn 0 seems to be used multiple times in the beginning?
-	fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
+	//fmt.Println("Packet Number changed to", pn, "by (", conn.(quic.Connection).RemoteAddr().String(), ",", conn.(quic.Connection).LocalAddr().String(), ")")
 }
 
 func clientMain() error {
@@ -158,7 +158,7 @@ func clientMain() error {
 
 	for i := 1; i <= NUM_MESSAGES; i++ {
 
-		fmt.Printf("	>>Client: Sending '%s%d'\n", message, i)
+		//fmt.Printf("	>>Client: Sending '%s%d'\n", message, i)
 		_, err = stream_prio.Write([]byte(message + fmt.Sprintf("%d", i)))
 		if err != nil {
 			return err
@@ -169,7 +169,7 @@ func clientMain() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("	>>Client: Got '%s'\n\n", buf)
+		//fmt.Printf("	>>Client: Got '%s'\n\n", buf)
 
 	}
 
@@ -180,7 +180,7 @@ func clientMain() error {
 type loggingWriter struct{ io.Writer }
 
 func (w loggingWriter) Write(b []byte) (int, error) {
-	fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(b))
+	//fmt.Printf("	>>Server: Got '%s'\n	>>Server: Echoing on same stream\n", string(b))
 	return w.Writer.Write(b)
 }
 

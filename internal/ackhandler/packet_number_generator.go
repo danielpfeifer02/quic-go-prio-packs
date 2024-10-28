@@ -1,8 +1,6 @@
 package ackhandler
 
 import (
-	"fmt"
-
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 )
@@ -114,7 +112,7 @@ func (p *settablePacketNumberGenerator) SetPacketNumber(next protocol.PacketNumb
 		panic("cannot lower the packet number")
 	}
 	if next == p.next {
-		fmt.Println("Packet number is the same as the current packet number. Some packet might have been shadowed.")
+		//fmt.Println("Packet number is the same as the current packet number. Some packet might have been shadowed.")
 	}
 	p.next = next
 	// p.changed = true

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"sync"
@@ -533,7 +532,7 @@ func (t *Transport) handleNonQUICPacket(p receivedPacket) {
 	case t.nonQUICPackets <- p:
 	default:
 		if t.Tracer != nil && t.Tracer.DroppedPacket != nil {
-			fmt.Println("SEVEN DOS")
+			//fmt.Println("SEVEN DOS")
 			t.Tracer.DroppedPacket(p.remoteAddr, logging.PacketTypeNotDetermined, p.Size(), logging.PacketDropDOSPrevention)
 		}
 	}

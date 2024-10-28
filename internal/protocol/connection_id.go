@@ -135,7 +135,7 @@ func (t *PriorityConnectionIDGenerator) GenerateConnectionID() (ConnectionID, er
 	// PRIO_PACKS_TAG
 	// TODOME: better way than casting?
 	if t.ConnLen != int(PriorityConnIDLen) {
-		fmt.Println("Priority-Connection ID length is not 16")
+		//fmt.Println("Priority-Connection ID length is not 16")
 		return ConnectionID{}, ErrInvalidConnectionIDLen
 	}
 

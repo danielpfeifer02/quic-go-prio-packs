@@ -30,7 +30,7 @@ var tlsConf *tls.Config
 func main() {
 	logFile, err := os.Create("/logs/log.txt")
 	if err != nil {
-		fmt.Printf("Could not create log file: %s\n", err.Error())
+		//fmt.Printf("Could not create log file: %s\n", err.Error())
 		os.Exit(1)
 	}
 	defer logFile.Close()
@@ -38,7 +38,7 @@ func main() {
 
 	keyLog, err := utils.GetSSLKeyLog()
 	if err != nil {
-		fmt.Printf("Could not create key log: %s\n", err.Error())
+		//fmt.Printf("Could not create key log: %s\n", err.Error())
 		os.Exit(1)
 	}
 	if keyLog != nil {
@@ -52,10 +52,10 @@ func main() {
 	testcase := os.Getenv("TESTCASE")
 	if err := runTestcase(testcase); err != nil {
 		if err == errUnsupported {
-			fmt.Printf("unsupported test case: %s\n", testcase)
+			//fmt.Printf("unsupported test case: %s\n", testcase)
 			os.Exit(127)
 		}
-		fmt.Printf("Downloading files failed: %s\n", err.Error())
+		//fmt.Printf("Downloading files failed: %s\n", err.Error())
 		os.Exit(1)
 	}
 }
