@@ -1063,6 +1063,9 @@ func (p *packetPacker) appendShortHeaderPacket(
 	var paddingLen protocol.ByteCount
 	if pl.length < 4-protocol.ByteCount(pnLen) {
 		paddingLen = 4 - protocol.ByteCount(pnLen) - pl.length
+		if !packet_setting.IS_RELAY && !packet_setting.IS_CLIENT {
+			fmt.Println("padding len", paddingLen, "pl.length", pl.length, "pnLen", pnLen)
+		}
 	}
 	paddingLen += padding
 

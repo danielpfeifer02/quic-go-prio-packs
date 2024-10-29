@@ -26,6 +26,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
+	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
 type unpacker interface {
@@ -2940,9 +2941,9 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 
 	fmt.Println("Dummy writing OnLost", sf.StreamID, len(sf.Data), s.numOutstandingFrames, reflect.TypeOf(s))
 	fmt.Println(hex.Dump(sf.Data[len(sf.Data)-5:]))
-	// sf.Data[len(sf.Data)-1] = 0x69 // TODO: remove
-	// sf.Data[len(sf.Data)-2] = 0x69 // TODO: remove
-	// sf.Data[len(sf.Data)-3] = 0x69 // TODO: remove
+	sf.Data[len(sf.Data)-1] = 0x69 // TODO: remove
+	sf.Data[len(sf.Data)-2] = 0x69 // TODO: remove
+	sf.Data[len(sf.Data)-3] = 0x69 // TODO: remove
 	// fmt.Println(hex.Dump(sf.Data))
 
 	if true {
@@ -2955,12 +2956,31 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		// header form seem trivial since only short header packets should be considered here (todo: long header packets from setup considered normally already?)
 		// packet number length is fixed to 4 bytes iirc
 		// destination conn id might be tricky? but the connection is known so it should be gettable somehow
-		// packetnumber is known from registration - is it also known here?
+		// packetnumber is known from registration - is it also known here? -> doesnt matter since the old pn is not needed / a new one is used. This might screw with the "telling bpf about a retransmit" though
 		// payload is obviously known
 
 		conn := s.sender.(*connection)
+		conn_id := conn.connIDManager.activeConnectionID
+		pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
+		pnLen := protocol.PacketNumberLen2
 
-		datasize := len(sf.Data)
+		// TODO: tell bpf about retransmit with this pn
+		fmt.Println("Conn ID:", conn_id, "Packet Number:", pn)
+
+		total_buf := make([]byte, 0)
+		total_buf, err := wire.AppendShortHeader(total_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Print("Header (len: ", len(total_buf), "): ")
+		for _, b := range total_buf {
+			fmt.Printf("%x ", b)
+		}
+		// hex.Dump(total_buf)
+
+		total_buf = append(total_buf, sf.Data...)
+
+		datasize := len(total_buf)
 
 		var pack_buf *packetBuffer
 		if datasize <= protocol.MaxPacketBufferSize {
@@ -2970,8 +2990,20 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		} else {
 			panic("Packet too large")
 		}
-		pack_buf.Data = pack_buf.Data[:datasize]
-		copy(pack_buf.Data, sf.Data)
+
+		var paddingLen protocol.ByteCount // TODO: padding: why is pl.length == 1 at server?
+		paddingLen = 1
+		// if len(sf.Data) < 4-protocol.ByteCount(pnLen) {
+		// 	paddingLen = 4 - protocol.ByteCount(pnLen) - len(sf.Data)
+		// }
+		pack_buf.Data = pack_buf.Data[:paddingLen] // add padding zeros
+
+		frame_header := make([]byte, 1)
+		frame_header[0] = 0x08                                                            // Stream frame type
+		frame_header = quicvarint.AppendWithMinSize(frame_header, uint64(sf.StreamID), 8) // fixed size of 8 bytes for stream id
+		pack_buf.Data = append(pack_buf.Data, frame_header...)
+
+		pack_buf.Data = append(pack_buf.Data, total_buf...)
 		conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
 
 		s.mutex.Unlock()
