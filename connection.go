@@ -2948,6 +2948,8 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 
 	if true {
 
+		// TODO: do i need offset / length?
+
 		// TODO:
 		// This seems to be a workaround for the problem that the lib does not send retransmissions reliably if i just add them to the retransmission queue
 		// The problem here seems to be that the header needs to be set manually as well - this might even be a good thing since the header flags are dependent
@@ -2959,6 +2961,8 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		// packetnumber is known from registration - is it also known here? -> doesnt matter since the old pn is not needed / a new one is used. This might screw with the "telling bpf about a retransmit" though
 		// payload is obviously known
 
+		// TODO: also consider what happens if a retransmit is lost again? is this already covered?
+
 		conn := s.sender.(*connection)
 		conn_id := conn.connIDManager.activeConnectionID
 		pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
@@ -2967,20 +2971,17 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		// TODO: tell bpf about retransmit with this pn
 		fmt.Println("Conn ID:", conn_id, "Packet Number:", pn)
 
-		total_buf := make([]byte, 0)
-		total_buf, err := wire.AppendShortHeader(total_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
+		sh_buf := make([]byte, 0)
+		sh_buf, err := wire.AppendShortHeader(sh_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Print("Header (len: ", len(total_buf), "): ")
-		for _, b := range total_buf {
+		fmt.Print("Header (len: ", len(sh_buf), "): ")
+		for _, b := range sh_buf {
 			fmt.Printf("%x ", b)
 		}
-		// hex.Dump(total_buf)
 
-		total_buf = append(total_buf, sf.Data...)
-
-		datasize := len(total_buf)
+		datasize := len(sh_buf) + len(sf.Data) + 1 /* frame type */ + 8 /* stream id */ + 0 /* padding length todo: why 1??? */
 
 		var pack_buf *packetBuffer
 		if datasize <= protocol.MaxPacketBufferSize {
@@ -2991,19 +2992,22 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 			panic("Packet too large")
 		}
 
-		var paddingLen protocol.ByteCount // TODO: padding: why is pl.length == 1 at server?
-		paddingLen = 1
+		// TODO: the library includes this code for padding which, for the server, adds 1 byte of padding in our case - WHY?
+		// var paddingLen protocol.ByteCount // TODO: padding: why is pl.length == 1 at server?
 		// if len(sf.Data) < 4-protocol.ByteCount(pnLen) {
 		// 	paddingLen = 4 - protocol.ByteCount(pnLen) - len(sf.Data)
 		// }
-		pack_buf.Data = pack_buf.Data[:paddingLen] // add padding zeros
+		// pack_buf.Data = pack_buf.Data[:paddingLen] // add padding zeros
+
+		pack_buf.Data = append(pack_buf.Data, sh_buf...) // adding short header
 
 		frame_header := make([]byte, 1)
 		frame_header[0] = 0x08                                                            // Stream frame type
 		frame_header = quicvarint.AppendWithMinSize(frame_header, uint64(sf.StreamID), 8) // fixed size of 8 bytes for stream id
 		pack_buf.Data = append(pack_buf.Data, frame_header...)
 
-		pack_buf.Data = append(pack_buf.Data, total_buf...)
+		pack_buf.Data = append(pack_buf.Data, sf.Data...) // adding data
+
 		conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
 
 		s.mutex.Unlock()
