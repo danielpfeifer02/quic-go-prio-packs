@@ -2967,6 +2967,7 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		conn_id := conn.connIDManager.activeConnectionID
 		pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
 		pnLen := protocol.PacketNumberLen2
+		offset := sf.Offset
 
 		// TODO: tell bpf about retransmit with this pn
 		fmt.Println("Conn ID:", conn_id, "Packet Number:", pn)
@@ -3004,6 +3005,10 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		frame_header := make([]byte, 1)
 		frame_header[0] = 0x08                                                            // Stream frame type
 		frame_header = quicvarint.AppendWithMinSize(frame_header, uint64(sf.StreamID), 8) // fixed size of 8 bytes for stream id
+		if offset > 0 {
+			fmt.Println("SF Offset:", offset)
+			frame_header = quicvarint.Append(frame_header, uint64(offset))
+		}
 		pack_buf.Data = append(pack_buf.Data, frame_header...)
 
 		pack_buf.Data = append(pack_buf.Data, sf.Data...) // adding data

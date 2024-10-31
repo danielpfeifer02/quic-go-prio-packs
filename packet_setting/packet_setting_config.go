@@ -46,6 +46,7 @@ type PacketRegisterContainerBPF struct {
 	PacketNumber int64
 	SentTime     int64
 	Length       int64
+	Offset       int64
 
 	RawData []byte
 
