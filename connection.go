@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -2881,47 +2880,17 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	// }
 }
 
-// DEBUG_TAG
-type dummy struct {
-	conn *connection
-}
-
-var ctr3 = 0
-
-func /*(d *dummy)// */ OnAcked(f wire.Frame) {
+func OnAcked(f wire.Frame) {
 	return // TODO: prolly remove payload saved in map
-	fmt.Println("OnAcked")
 }
-func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
-	fmt.Println("OnLost")
+
+func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 
 	if !packet_setting.IS_RELAY {
 		panic("This code should only be executed on the relay")
 	}
 
-	// fmt.Println("TURN ON ONLOST AGAIN\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
-	// return // TODO: remove
-
 	sf := f.(*wire.StreamFrame)
-
-	// data := []byte{0x69, 0x69, 0x69, 0x69} // sf.Data
-
-	// time.Sleep(2 * time.Millisecond)
-
-	// w, err := str.Write(data)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// if w != len(data) {
-	// 	panic("Not all bytes written")
-	// }
-
-	// err = str.Close() // TODO: WHen to close the stream?
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// s := (*sendStreamAckHandler)(str)
 
 	if s.streamID != sf.StreamID {
 		panic("Stream ID mismatch")
@@ -2933,103 +2902,78 @@ func /*(d *dummy)// */ OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		return
 	}
 	sf.DataLenPresent = true
-
 	if len(sf.Data) == 0 {
-		fmt.Println("No data in stream frame") // TODO: why happening?
+		fmt.Println("No data in stream frame") // TODO: why happening? - I think this might happen since the data cannot be found if the retransmit is a retransmit of a retransmit
 		return
 	}
 
-	fmt.Println("Dummy writing OnLost", sf.StreamID, len(sf.Data), s.numOutstandingFrames, reflect.TypeOf(s))
-	fmt.Println(hex.Dump(sf.Data[len(sf.Data)-5:]))
-	sf.Data[len(sf.Data)-1] = 0x69 // TODO: remove
-	sf.Data[len(sf.Data)-2] = 0x69 // TODO: remove
-	sf.Data[len(sf.Data)-3] = 0x69 // TODO: remove
-	// fmt.Println(hex.Dump(sf.Data))
+	// TODO:
+	// This seems to be a workaround for the problem that the lib does not send retransmissions reliably if i just add them to the retransmission queue
+	// The problem here seems to be that the header needs to be set manually as well - this might even be a good thing since the header flags are dependent
+	// on the data that is sent anyway, e.g. fin flag and a new stream might screw this up.
+	// Things to consider:
+	// header form seem trivial since only short header packets should be considered here (todo: long header packets from setup considered normally already?)
+	// packet number length is fixed to 4 bytes iirc
+	// destination conn id might be tricky? but the connection is known so it should be gettable somehow
+	// packetnumber is known from registration - is it also known here? -> doesnt matter since the old pn is not needed / a new one is used. This might screw with the "telling bpf about a retransmit" though
+	// payload is obviously known
 
-	if true {
+	conn := s.sender.(*connection)
+	conn_id := conn.connIDManager.activeConnectionID
+	pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
+	pnLen := protocol.PacketNumberLen2
+	offset := sf.Offset
 
-		// TODO: do i need offset / length?
+	// TODO: this should make the data accessible if the retransmission gets lost
+	// if packet_setting.StoreServerPacket != nil {
+	// 	data_dup := make([]byte, len(sf.Data))
+	// 	copy(data_dup, sf.Data)
 
-		// TODO:
-		// This seems to be a workaround for the problem that the lib does not send retransmissions reliably if i just add them to the retransmission queue
-		// The problem here seems to be that the header needs to be set manually as well - this might even be a good thing since the header flags are dependent
-		// on the data that is sent anyway, e.g. fin flag and a new stream might screw this up.
-		// Things to consider:
-		// header form seem trivial since only short header packets should be considered here (todo: long header packets from setup considered normally already?)
-		// packet number length is fixed to 4 bytes iirc
-		// destination conn id might be tricky? but the connection is known so it should be gettable somehow
-		// packetnumber is known from registration - is it also known here? -> doesnt matter since the old pn is not needed / a new one is used. This might screw with the "telling bpf about a retransmit" though
-		// payload is obviously known
+	// 	ts := time.Now().UnixNano()
 
-		// TODO: also consider what happens if a retransmit is lost again? is this already covered?
+	// 	fmt.Println("Store pn", pn)
+	// 	packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
+	// }
 
-		conn := s.sender.(*connection)
-		conn_id := conn.connIDManager.activeConnectionID
-		pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
-		pnLen := protocol.PacketNumberLen2
-		offset := sf.Offset
+	// TODO: tell bpf about retransmit with this pn
 
-		// TODO: tell bpf about retransmit with this pn
-		fmt.Println("Conn ID:", conn_id, "Packet Number:", pn)
+	sh_buf := make([]byte, 0)
+	sh_buf, err := wire.AppendShortHeader(sh_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
+	if err != nil {
+		panic(err)
+	}
+	datasize := len(sh_buf) + len(sf.Data) + 1 /* frame type */ + 8 /* stream id */ + 0 /* padding length todo: why 1??? */
 
-		sh_buf := make([]byte, 0)
-		sh_buf, err := wire.AppendShortHeader(sh_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Print("Header (len: ", len(sh_buf), "): ")
-		for _, b := range sh_buf {
-			fmt.Printf("%x ", b)
-		}
-
-		datasize := len(sh_buf) + len(sf.Data) + 1 /* frame type */ + 8 /* stream id */ + 0 /* padding length todo: why 1??? */
-
-		var pack_buf *packetBuffer
-		if datasize <= protocol.MaxPacketBufferSize {
-			pack_buf = getPacketBuffer()
-		} else if datasize <= protocol.MaxLargePacketBufferSize {
-			pack_buf = getLargePacketBuffer()
-		} else {
-			panic("Packet too large")
-		}
-
-		// TODO: the library includes this code for padding which, for the server, adds 1 byte of padding in our case - WHY?
-		// var paddingLen protocol.ByteCount // TODO: padding: why is pl.length == 1 at server?
-		// if len(sf.Data) < 4-protocol.ByteCount(pnLen) {
-		// 	paddingLen = 4 - protocol.ByteCount(pnLen) - len(sf.Data)
-		// }
-		// pack_buf.Data = pack_buf.Data[:paddingLen] // add padding zeros
-
-		pack_buf.Data = append(pack_buf.Data, sh_buf...) // adding short header
-
-		frame_header := make([]byte, 1)
-		frame_header[0] = 0x08                                                            // Stream frame type
-		frame_header = quicvarint.AppendWithMinSize(frame_header, uint64(sf.StreamID), 8) // fixed size of 8 bytes for stream id
-		if offset > 0 {
-			fmt.Println("SF Offset:", offset)
-			frame_header = quicvarint.Append(frame_header, uint64(offset))
-		}
-		pack_buf.Data = append(pack_buf.Data, frame_header...)
-
-		pack_buf.Data = append(pack_buf.Data, sf.Data...) // adding data
-
-		conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
-
-		s.mutex.Unlock()
-
-		return
-
+	var pack_buf *packetBuffer
+	if datasize <= protocol.MaxPacketBufferSize {
+		pack_buf = getPacketBuffer()
+	} else if datasize <= protocol.MaxLargePacketBufferSize {
+		pack_buf = getLargePacketBuffer()
+	} else {
+		panic("Packet too large")
 	}
 
-	s.retransmissionQueue = append(s.retransmissionQueue, sf)
+	pack_buf.Data = append(pack_buf.Data, sh_buf...) // adding short header
+
+	frame_header := make([]byte, 1)
+	frame_header[0] = 0x08                                                            // Stream frame type
+	frame_header = quicvarint.AppendWithMinSize(frame_header, uint64(sf.StreamID), 8) // fixed size of 8 bytes for stream id
+	if offset > 0 {
+		frame_header = quicvarint.Append(frame_header, uint64(offset))
+		frame_header[0] |= 0x04 // set offset bit
+	}
+	pack_buf.Data = append(pack_buf.Data, frame_header...)
+
+	pack_buf.Data = append(pack_buf.Data, sf.Data...) // adding data
+
+	conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
 
 	s.mutex.Unlock()
 
-	// fmt.Println(reflect.TypeOf(s.sender), "OnLost")
-	s.sender.onHasStreamData(s.streamID) // TODO: call does not work?
-	// s.sender.(*connection).sendPackets(time.Now()) // TODO: call does not work?
-	// fmt.Println("done in OnLost")
-
-	// //fmt.Println("OnLostFlag", sf.StreamID, str.streamID)
+	// TODO: for some reason this approach does not work even thought the "normal"
+	// TODO: OnLost function does it this way.
+	// s.retransmissionQueue = append(s.retransmissionQueue, sf)
+	// s.mutex.Unlock()
+	// s.sender.onHasStreamData(s.streamID)
 
 }
