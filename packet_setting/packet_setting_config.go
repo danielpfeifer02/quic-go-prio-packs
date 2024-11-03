@@ -89,6 +89,13 @@ type PacketNumberMapping struct {
 	NewPacketNumber      int64
 }
 
+type PacketIdentifierStruct struct {
+	PacketNumber    uint64
+	StreamID        uint64
+	ConnectionID    []uint8
+	ConnectionIDLen uint8
+}
+
 var (
 	ALLOW_SETTING_PN                bool                                          = false
 	OMIT_CONN_ID_RETIREMENT         bool                                          = false
@@ -102,6 +109,7 @@ var (
 	// RETRANSMISSION_TAG
 	// STREAM_ID_TAG
 	MarkStreamIdAsRetransmission func(stream_id uint64, conn QuicConnection) = nil
+	MarkPacketAsRetransmission   func(PacketIdentifierStruct)                = nil
 
 	// BPF_CC_TAG
 	// CONGESTION_WINDOW_TAG

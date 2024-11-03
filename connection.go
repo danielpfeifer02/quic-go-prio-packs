@@ -2925,17 +2925,27 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 	offset := sf.Offset
 
 	// TODO: this should make the data accessible if the retransmission gets lost
-	// if packet_setting.StoreServerPacket != nil {
-	// 	data_dup := make([]byte, len(sf.Data))
-	// 	copy(data_dup, sf.Data)
+	if packet_setting.StoreRelayPacket != nil {
+		data_dup := make([]byte, len(sf.Data))
+		copy(data_dup, sf.Data)
 
-	// 	ts := time.Now().UnixNano()
+		ts := time.Now().UnixNano()
 
-	// 	fmt.Println("Store pn", pn)
-	// 	packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
-	// }
+		fmt.Println("Store pn", pn)
+		packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
+	}
 
 	// TODO: tell bpf about retransmit with this pn
+	if packet_setting.MarkPacketAsRetransmission != nil {
+		packet_identifier := packet_setting.PacketIdentifierStruct{
+			PacketNumber:    uint64(pn),
+			StreamID:        uint64(sf.StreamID),
+			ConnectionID:    conn_id.Bytes(),
+			ConnectionIDLen: uint8(conn_id.Len()),
+		}
+		packet_setting.MarkPacketAsRetransmission(packet_identifier)
+		fmt.Println("Marked packet (", pn, sf.StreamID, ") as retransmission")
+	}
 
 	sh_buf := make([]byte, 0)
 	sh_buf, err := wire.AppendShortHeader(sh_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
