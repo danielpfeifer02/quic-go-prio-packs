@@ -2924,17 +2924,6 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 	pnLen := protocol.PacketNumberLen2
 	offset := sf.Offset
 
-	// TODO: this should make the data accessible if the retransmission gets lost
-	if packet_setting.StoreRelayPacket != nil {
-		data_dup := make([]byte, len(sf.Data))
-		copy(data_dup, sf.Data)
-
-		ts := time.Now().UnixNano()
-
-		fmt.Println("Store pn", pn)
-		packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
-	}
-
 	// TODO: tell bpf about retransmit with this pn
 	if packet_setting.MarkPacketAsRetransmission != nil {
 		packet_identifier := packet_setting.PacketIdentifierStruct{
@@ -2972,9 +2961,22 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 		frame_header = quicvarint.Append(frame_header, uint64(offset))
 		frame_header[0] |= 0x04 // set offset bit
 	}
-	pack_buf.Data = append(pack_buf.Data, frame_header...)
 
-	pack_buf.Data = append(pack_buf.Data, sf.Data...) // adding data
+	frame_header_with_data := append(frame_header, sf.Data...)
+
+	// We need to store the data (with the frame header already attached) in the retransmission "cache".
+	// This makes the data accessible if the retransmission gets lost.
+	if packet_setting.StoreRelayPacket != nil {
+		data_dup := make([]byte, len(frame_header_with_data))
+		copy(data_dup, frame_header_with_data)
+
+		ts := time.Now().UnixNano()
+
+		fmt.Print("Store pn ", pn)
+		packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
+	}
+
+	pack_buf.Data = append(pack_buf.Data, frame_header_with_data...) // adding frame header and data
 
 	conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
 

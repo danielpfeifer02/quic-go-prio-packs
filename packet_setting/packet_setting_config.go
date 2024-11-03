@@ -159,6 +159,10 @@ var (
 	AckedCacheLock sync.Mutex     = sync.Mutex{}
 
 	PacketOriginatedAtRelay func(pn int64) bool = nil
+
+	VALID_FLAG          uint32 = 1 << 0
+	USERSPACE_FLAG      uint32 = 1 << 1
+	RETRANSMISSION_FLAG uint32 = 1 << 2
 )
 
 func DebugPrintln(s ...any) {
