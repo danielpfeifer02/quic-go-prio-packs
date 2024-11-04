@@ -12,7 +12,6 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
-	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 )
 
@@ -193,7 +192,6 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 				deadlineTimer.Reset(deadline)
 			}
 			if s.dataForWriting == nil || s.cancelWriteErr != nil || s.closeForShutdownErr != nil {
-				packet_setting.DebugPrintln("break nil") // TODONOW: remove
 				break
 			}
 		}
@@ -202,11 +200,9 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 		if !notifiedSender {
 			s.sender.onHasStreamData(s.streamID) // must be called without holding the mutex
 			notifiedSender = true
-			// //fmt.Println("notifiedSender-----------------------------------------")
 		}
 		if copied {
 			s.mutex.Lock()
-			// //fmt.Println("break copied") // TODONOW: remove
 			break
 		}
 		if deadline.IsZero() {
@@ -219,7 +215,6 @@ func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.Strea
 			}
 		}
 		s.mutex.Lock()
-		//fmt.Println("Not written in one take") // TODONOW: remove
 	}
 
 	if bytesWritten == len(p) {
@@ -249,7 +244,6 @@ func (s *sendStream) popStreamFrame(maxBytes protocol.ByteCount, v protocol.Vers
 
 	if f != nil {
 		s.numOutstandingFrames++
-		// packet_setting.DebugPrintln(hex.Dump(f.Data))
 	}
 	s.mutex.Unlock()
 
@@ -273,12 +267,6 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 		if f != nil || hasMoreRetransmissions {
 			if f == nil {
 				return nil, true
-			}
-
-			if f.Data[0] == 0x69 { // TODONOW: remove
-				//fmt.Println("popNewOrRetransmittedStreamFrame: retransmissionQueue")
-			} else {
-				//fmt.Println("Userspace retransmissionQueue")
 			}
 			// We always claim that we have more data to send.
 			// This might be incorrect, in which case there'll be a spurious call to popStreamFrame in the future.
@@ -321,9 +309,6 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 		s.finSent = true
 	}
 
-	if f.Data[0] == 0x69 {
-		//fmt.Println("popNewOrRetransmittedStreamFrame: popNewStreamFrame") // TODONOW: remove
-	}
 	return f, hasMoreData
 }
 
@@ -507,7 +492,6 @@ func (s *sendStream) closeForShutdown(err error) {
 func (s *sendStream) signalWrite() {
 	select {
 	case s.writeChan <- struct{}{}:
-		// //fmt.Println("signalWrite", hex.Dump(s.nextFrame.Data[:10])) // TODONOW: remove
 	default:
 	}
 }
@@ -562,7 +546,6 @@ func (s *sendStreamAckHandler) OnLost(f wire.Frame) {
 	}
 
 	sf := f.(*wire.StreamFrame)
-	// //fmt.Println("sendStreamAckHandler: OnLost", sf.StreamID) // TODONOW: why not showing? other OnLost called?
 
 	s.mutex.Lock()
 	if s.cancelWriteErr != nil {

@@ -371,12 +371,6 @@ func (s *connection) GetDestConnID(stream Stream) protocol.ConnectionID {
 	return s.connIDManager.Get(s.GetPriority(stream.StreamID()))
 }
 
-// // BPF_CC_TAG
-// // RETRANSMISSION_TAG
-// func (s *connection) GetOrOpenSendStream(id protocol.StreamID) (SendStream, error) {
-// 	return s.streamsMap.GetOrOpenSendStream(id)
-// }
-
 // RTT_STATS_TAG
 func (s *connection) GetRTTStats() RTTStatistics {
 	stats := s.rttStats
@@ -661,7 +655,6 @@ runLoop:
 			}
 		}
 
-		// //fmt.Println("Check for timeout")
 		now := time.Now()
 		if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
 			// This could cause packets to be retransmitted.
@@ -939,19 +932,6 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 	return processed
 }
 
-// // BPF_CC_TAG
-// // RETRANSMISSION_TAG
-// func (s *connection) AddAckHandlerToStreamFrame(stream_frame *wire.StreamFrame) ackhandler.StreamFrame {
-// 	send_stream, err := s.streamsMap.GetOrOpenSendStream(stream_frame.StreamID)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	return ackhandler.StreamFrame{
-// 		Frame:   stream_frame,
-// 		Handler: (*sendStreamAckHandler)(send_stream.(*sendStream)),
-// 	}
-// }
-
 // BPF_CC_TAG
 // CACHING_TAG
 // RETRANSMISSION_TAG
@@ -968,21 +948,14 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	// TODONOW: i.e. is a throwaway connection not 100% correct?
 	throwaway_parser := *wire.NewFrameParser(s.config.EnableDatagrams)
 
-	// // print bytes in hex format
-	// //fmt.Println(hex.Dump(data))
-
-	// for len(data) > 0 { // Only one frame per packet. This is a simplification for now
+	// For now only one frame per packet. This is a simplification and can be changed later to "for len(data) > 0"
 	l, frame, err := throwaway_parser.ParseNext(data, protocol.Encryption1RTT, s.version)
 	if err != nil {
-		// if strings.Contains(err.Error(), "unknown frame type") {
-		// 	return frames, stream_frames, errors.ErrUnsupported
-		// }
 		panic(err)
 	}
 	data = data[l:]
 
 	if frame == nil {
-		//fmt.Println("Frame is nil")
 		return frames, stream_frames, nil // TODO: how to handle correctly
 	}
 
@@ -998,7 +971,6 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	} else if _, ok := frame.(*wire.DatagramFrame); ok {
 		return nil, nil, errors.New("Datagram")
 	} else {
-		// frames = append(frames, frame)
 		fmt.Println("Omitting some frame. For now only stream frames are supported", reflect.TypeOf(frame)) // TODONOW: handle all frames that can occur
 		return frames, stream_frames, nil                                                                   // TODO handle correctly
 	}
@@ -1029,7 +1001,6 @@ func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protoc
 	// RETRANSMISSION_TAG
 	// TODONOW: add storage of server_pn to data mapping here for retransmission
 	// TODONOW: make sure only relay does this
-	// TODO: remove from here?
 	if packet_setting.StoreServerPacket != nil && s.RemoteAddr().String() == packet_setting.SERVER_ADDR {
 		data_dup := make([]byte, len(data))
 		copy(data_dup, data)
@@ -1401,10 +1372,6 @@ func (s *connection) handleFrames(
 	handshakeWasComplete := s.handshakeComplete
 	var handleErr error
 
-	// // CACHING_TAG
-	// // RETRANSMISSION_TAG
-	// stream_frames := make([]packet_setting.StreamFrame, 0)
-
 	for len(data) > 0 {
 		l, frame, err := s.frameParser.ParseNext(data, encLevel, s.version)
 		if err != nil {
@@ -1432,19 +1399,6 @@ func (s *connection) handleFrames(
 			// If we're logging, we need to keep parsing (but not handling) all frames.
 			handleErr = err
 		}
-
-		// // CACHING_TAG
-		// // RETRANSMISSION_TAG
-		// if stream_frame, ok := frame.(*wire.StreamFrame); ok {
-		// 	ps_sf := packet_setting.StreamFrame{
-		// 		StreamID:       stream_frame.StreamID,
-		// 		Offset:         stream_frame.Offset,
-		// 		Data:           stream_frame.Data,
-		// 		Fin:            stream_frame.Fin,
-		// 		DataLenPresent: stream_frame.DataLenPresent,
-		// 	}
-		// 	stream_frames = append(stream_frames, ps_sf)
-		// } // TODONOW: need other frame types?
 	}
 
 	if log != nil {
@@ -1586,7 +1540,6 @@ func (s *connection) handleHandshakeEvents() error {
 }
 
 func (s *connection) handleStreamFrame(frame *wire.StreamFrame) error {
-	// //fmt.Println(frame.StreamID)
 	str, err := s.streamsMap.GetOrOpenReceiveStream(frame.StreamID)
 	if err != nil {
 		return err
@@ -1700,19 +1653,6 @@ func (s *connection) handleHandshakeDoneFrame() error {
 }
 
 func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.EncryptionLevel) error {
-
-	// BPF_MAP_TAG
-	// BPF_CC_TAG
-	// frame.UpdateAckRanges(s)
-	// if len(frame.AckRanges) == 0 {
-	// 	return nil
-	// }
-
-	// //fmt.Print("Handling ACK frame (")
-	// for _, r := range frame.AckRanges {
-	// 	//fmt.Print(r.Smallest, "-", r.Largest, " ")
-	// }
-	// //fmt.Println(")")
 
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
@@ -2466,7 +2406,7 @@ type PriorityWriter interface {
 	Write([]byte) (int, error)
 }
 
-// TODONOW
+// TODONOW: old approach. Still needed?
 // PRIO_PACKS_TAG
 func readPriorityFromStream(str PriorityReader) Priority {
 	if !packet_setting.EXCHANGE_PRIOS {
@@ -2486,7 +2426,7 @@ func readPriorityFromStream(str PriorityReader) Priority {
 	return prio
 }
 
-// TODONOW
+// TODONOW: old approach. Still needed?
 func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
 	if !packet_setting.EXCHANGE_PRIOS {
 		return
@@ -2650,25 +2590,10 @@ func (s *connection) onHasStreamData(id protocol.StreamID) {
 	s.framer.AddActiveStream(id)
 	tmp := s.packer.(*packetPacker).framer.(framer)
 	if !reflect.DeepEqual(tmp, s.framer) {
-		panic("Framer not the same") // TODONOW: remove
+		panic("Framer not the same")
 	}
 
 	s.scheduleSending()
-	return
-
-	// TODO: different behaviour for retranmission of relay???
-	// if !packet_setting.IS_RELAY || s.sendQueue.WouldBlock() { // TODO: idk if this is correct
-	// 	s.scheduleSending()
-	// } else {
-	// 	// old_mode := s.sentPacketHandler.SendMode(time.Now())
-	// 	// fmt.Println(old_mode, "OnLost sendmode")
-	// 	// s.sentPacketHandler.ptoMode =
-	// 	// s.triggerSending(time.Now())
-	// 	err := s.sendPackets(time.Now())
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
 }
 
 func (s *connection) onStreamCompleted(id protocol.StreamID) {
@@ -2790,98 +2715,37 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	}
 	if len(stream_frames) == 0 {
 		return
-		panic("No stream frames found in BPF packet")
 	}
 
 	prc.Frames = make([]packet_setting.GeneralFrame, 0)
 	prc.StreamFrames = stream_frames
 
 	handler_lut := make(map[protocol.StreamID]ackhandler.FrameHandler)
-	// fmt.Println("Registering BPF packet with", len(stream_frames), "stream frames")
 	for _, sf := range stream_frames {
 
-		// //fmt.Println("Debouuuug")
 		id := sf.StreamID
 		sender := s.streamsMap.GetSender()
 		nfc := s.streamsMap.GetNewFlowController()
 
-		var already_str sendStreamI
-		var str *sendStream
-		if _, ok := packet_setting.RetransmissionStreamMap[id]; ok && false { // TODO: remove
-			// if cast, ok := already_str.(*sendStream); ok {
-			// 	str = cast
-			// } else {
-			// 	panic("Not a send stream")
-			// }
-			// //fmt.Println("Already created stream with id", id)
-			already_str, err = s.streamsMap.GetOrOpenSendStream(protocol.StreamID(id))
-			if err != nil {
-				panic(err)
-			}
+		str := newSendStream(id, *sender, (*nfc)(id))
 
-			str = already_str.(*sendStream) // TODO: write on closed stream????
+		s.streamsMap.AddToStreams(protocol.StreamID(id), str)
 
-		} else {
-			// TODO: all good with id / num of stream?
-			str = newSendStream(id, *sender, (*nfc)(id))
+		str.overwrittenOnLost = OnLost
+		str.overwrittenOnAcked = OnAcked
 
-			// tmp, err := s.OpenUniStreamWithPriority(priority_setting.HighPriority)
-			// if err != nil {
-			// 	panic(err)
-			// }
-			// str = tmp.(*sendStream)
-
-			s.streamsMap.AddToStreams(protocol.StreamID(id), str)
-
-			// //fmt.Println("Manually created stream with id", id)
-			// packet_setting.RetransmissionStreamMap[id] = str
-
-			// fmt.Println("Setting onLost and onAcked")
-			str.overwrittenOnLost = OnLost
-			str.overwrittenOnAcked = OnAcked
-		}
-
-		if packet_setting.MarkStreamIdAsRetransmission != nil {
+		if packet_setting.MarkStreamIdAsRetransmission != nil { // ! TODONOW: still needded (seems that way)? -> why still needed?
 			packet_setting.MarkStreamIdAsRetransmission(uint64(id), s) // TODO: type int64 to uint64 ok?
-			// time.Sleep(2 * time.Millisecond)
 		}
 
-		// send_stream, err := s.streamsMap.GetOrOpenSendStream(sf.StreamID)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// handler := &dummy{
-		// 	conn: s,
-		// } //(*sendStreamAckHandler)(send_stream.(*sendStream))
 		handler_lut[sf.StreamID] = (*sendStreamAckHandler)(str)
 	}
-	// if cc == nil {
-	// 	cc = s
-	// }
 
-	// //fmt.Println("Connection RegisterBPFPacket\n\n\n")
-	ackhandler.Tmp = s.sentPacketHandler // TODO: remove
 	s.sentPacketHandler.RegisterBPFPacket(prc, handler_lut)
-
-	// TODO: remove
-	s.logShortHeaderPacket(protocol.ConnectionID{}, &wire.AckFrame{}, // TODO: just for debugging
-		make([]ackhandler.Frame, 0), make([]ackhandler.StreamFrame, 0),
-		protocol.PacketNumber(prc.PacketNumber), 0, 0, 0, 0, false)
-
-	// DEBUG_TAG
-	// //fmt.Println("Check for timeout")
-	// now := time.Now()
-	// if timeout := s.sentPacketHandler.GetLossDetectionTimeout(); !timeout.IsZero() && timeout.Before(now) {
-	// 	// This could cause packets to be retransmitted.
-	// 	// Check it before trying to send packets.
-	// 	if err := s.sentPacketHandler.OnLossDetectionTimeout(); err != nil {
-	// 		s.closeLocal(err)
-	// 	}
-	// }
 }
 
 func OnAcked(f wire.Frame) {
-	return // TODO: prolly remove payload saved in map
+	// TODO: prolly remove payload saved in map
 }
 
 func OnLost(f wire.Frame, s *sendStreamAckHandler) {
@@ -2903,7 +2767,7 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 	}
 	sf.DataLenPresent = true
 	if len(sf.Data) == 0 {
-		fmt.Println("No data in stream frame") // TODO: why happening? - I think this might happen since the data cannot be found if the retransmit is a retransmit of a retransmit
+		fmt.Println("No data in stream frame") // TODO: why happening? - I thought this might happen since the data cannot be found if the retransmit is a retransmit of a retransmit but seems to happen because of smth else
 		return
 	}
 

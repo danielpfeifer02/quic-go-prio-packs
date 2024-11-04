@@ -16,9 +16,7 @@ type sentPacketHistory struct {
 
 	highestPacketNumber protocol.PacketNumber
 
-	// BPF_CC_TAG // TODO: clean up whats not needed
-	updateLargestSent func(pn protocol.PacketNumber)
-	largestSent       protocol.PacketNumber
+	largestSent protocol.PacketNumber
 
 	// DEBUG_TAG
 	translation_map map[protocol.PacketNumber]protocol.PacketNumber
@@ -80,7 +78,7 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 }
 
 // DEBUG_TAG
-func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
+func (h *sentPacketHistory) SentBPFPacket(p_in *packet) {
 
 	if p_in.PacketNumber > h.highestPacketNumber {
 		h.highestPacketNumber = p_in.PacketNumber
@@ -90,12 +88,9 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 	// lock := &sync.Mutex{}
 
 	p_in.SendTime = time.Now()
-	// //fmt.Println("Set sendtime to", p_in.SendTime.UnixNano()) // TODONOW: fix issue with sendtime
-	p_in.IsBPFRegisteredPacket = true // &&
+	p_in.IsBPFRegisteredPacket = true
 
 	pn := p_in.PacketNumber
-	// h.insertionMutex.Lock() // TODO: necessary?
-	// defer h.insertionMutex.Unlock()
 	for i := 0; i <= len(h.packets); i++ {
 		var p *packet
 		if i == len(h.packets) {
@@ -103,7 +98,7 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 		} else {
 			p = h.packets[i]
 		}
-		// go func(p *packet, i int, lock *sync.Mutex) {
+		// TODO: would a go routine here cause better performance?
 		if p == nil || p.PacketNumber > pn {
 			h.packets = append(h.packets[:i], append([]*packet{p_in}, h.packets[i:]...)...)
 
@@ -114,93 +109,11 @@ func (h *sentPacketHistory) SentBPFPacket_test(p_in *packet) {
 			if pn > h.highestPacketNumber {
 				h.highestPacketNumber = pn
 			}
-
-			// //fmt.Println("BPF packet inserted at position", i, "with history of length", len(h.packets))
 			return
 
 		}
-		// }(p, i, lock) // TODONOW: use go routine with lock?
 	}
 	panic("This should not happen (BPF packet insertion failed)")
-}
-
-// TODO: clean up this mess
-// BPF_CC_TAG
-func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF, pns *packetNumberSpace) {
-	// TODONOW: what is needed here?
-	// pn := protocol.PacketNumber(prc.PacketNumber)
-	// tm := time.Unix(0, prc.SentTime)
-	// le := protocol.ByteCount(prc.Length)
-
-	// // We also need to update the largest sent packet number
-	// // from the sent_packet_handler
-	// if pn > pns.largestSent {
-	// 	pns.largestSent = pn
-	// }
-
-	// // TODONOW: get real stream frames
-	// // RETRANSMISSION_TAG
-	// sf := make([]StreamFrame, 0)
-	// f := &wire.StreamFrame{
-	// 	StreamID:       protocol.StreamID(prc.StreamID),
-	// 	Offset:         protocol.ByteCount(prc.Offset),
-	// 	Data:           prc.Data,
-	// 	Fin:            prc.Fin,
-	// 	DataLenPresent: prc.DataLenPresent,
-	// }
-
-	// // dummy_handler := &dummy{} // TODO: how to define an appropriate handler?
-
-	// final_sf := StreamFrame{
-	// 	Frame:   f,
-	// 	Handler: nil,
-	// }
-	// sf = append(sf, final_sf)
-
-	// // We do not check for sequential packet number use for BPF packets
-	// // since those could be "registered" out of order. (TODONOW: i think?)
-
-	// bpf_packet := &packet{ // TODO: what fields should be set here?
-	// 	SendTime:        tm,
-	// 	PacketNumber:    pn,
-	// 	StreamFrames:    sf,
-	// 	Frames:          nil,
-	// 	LargestAcked:    protocol.InvalidPacketNumber,
-	// 	Length:          le,
-	// 	EncryptionLevel: protocol.Encryption0RTT,
-
-	// 	declaredLost:         false,
-	// 	skippedPacket:        false,
-	// 	IsPathMTUProbePacket: false,
-	// }
-
-	// // Insert the BPF packet at the correct position
-	// // (i.e., the position of the first packet with a higher packet number)
-	// // lock := &sync.Mutex{}
-	// for i := 0; i <= len(h.packets); i++ {
-	// 	var p *packet
-	// 	if i == len(h.packets) {
-	// 		p = nil
-	// 	} else {
-	// 		p = h.packets[i]
-	// 	}
-	// 	// go func(p *packet, i int, lock *sync.Mutex) {
-	// 	if p == nil || p.PacketNumber > pn {
-	// 		h.packets = append(h.packets[:i], append([]*packet{bpf_packet}, h.packets[i:]...)...)
-
-	// 		h.numOutstanding++
-
-	// 		if pn > h.highestPacketNumber {
-	// 			h.highestPacketNumber = pn
-	// 		}
-
-	// 		//fmt.Println("BPF packet inserted at position", i)
-	// 		return
-
-	// 	}
-	// 	// }(p, i, lock) // TODONOW: use go routine with lock?
-	// }
-	// //fmt.Println("This should not happen")
 }
 
 // Iterate iterates through all packets.
@@ -238,7 +151,6 @@ func (h *sentPacketHistory) Len() int {
 }
 
 func (h *sentPacketHistory) Remove(pn protocol.PacketNumber) error {
-	// //fmt.Println("Removing packet", pn)
 	idx, ok := h.getIndex(pn)
 	if !ok { // Potentially we have to wait until the packet is registered
 
@@ -316,24 +228,6 @@ func (h *sentPacketHistory) getIndex(p protocol.PacketNumber) (int, bool) {
 			}
 		}
 		return 0, false
-
-		// // Do binary search for the index and return 0, false if
-		// // the index is not found
-		// low := 0
-		// high := len(h.packets) - 1
-		// for low <= high {
-		// 	mid := (low + high) / 2
-		// 	if h.packets[mid].PacketNumber == p {
-		// 		return mid, true
-		// 	}
-		// 	if h.packets[mid].PacketNumber < p {
-		// 		low = mid + 1
-		// 	} else {
-		// 		high = mid - 1
-		// 	}
-		// }
-		// return 0, false
-
 	}
 
 	index := int(p - first)
@@ -386,9 +280,6 @@ func (h *sentPacketHistory) DeclareLost(pn protocol.PacketNumber) {
 // BPF_RETRANSMISSION_TAG
 func (h *sentPacketHistory) UpdatePacketNumberMapping(mapping packet_setting.PacketNumberMapping) {
 
-	// h.insertionMutex.Lock()
-	// defer h.insertionMutex.Unlock()
-
 	for i, p := range h.packets {
 		if p == nil {
 			continue
@@ -413,10 +304,8 @@ func (h *sentPacketHistory) UpdatePacketNumberMapping(mapping packet_setting.Pac
 			}
 			p.SendTime = time.Now() // time.Unix(0, 1<<63-1) // TODO: remove
 			h.packets = append(history_without[:index_for_insertion], append([]*packet{p}, history_without[index_for_insertion:]...)...)
-			// //fmt.Printf("Packet number mapping updated (%d->%d)\n", mapping.OriginalPacketNumber, mapping.NewPacketNumber)
 			h.translation_map[protocol.PacketNumber(mapping.NewPacketNumber)] = protocol.PacketNumber(mapping.OriginalPacketNumber)
 			return
 		}
 	}
-	// panic("Packet number not found in sent packet history")
 }

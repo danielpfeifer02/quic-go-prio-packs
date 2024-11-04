@@ -128,7 +128,6 @@ var (
 	// Important note: this function should return "pn, err" in case of an error
 	AckTranslationBPFHandler         func(pn int64, conn QuicConnection) (int64, error) = nil
 	AckTranslationDeletionBPFHandler func(pn int64, conn QuicConnection)                = nil
-	// CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil // TODO: remove
 
 	SERVER_ADDR    string = "192.168.10.1:4242"
 	RELAY_ADDR     string = "192.168.11.2:4242"
@@ -167,7 +166,7 @@ var (
 
 func DebugPrintln(s ...any) {
 	if DEBUG_PRINT {
-		//fmt.Println(s)
+		fmt.Println(s...)
 	}
 }
 

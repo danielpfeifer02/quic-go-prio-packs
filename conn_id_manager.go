@@ -270,6 +270,4 @@ func (h *connIDManager) SwitchToPriorityID(prio Priority) {
 			return
 		}
 	}
-
-	//fmt.Println("No connection ID with the requested priority found. (%d)", prio)
 }

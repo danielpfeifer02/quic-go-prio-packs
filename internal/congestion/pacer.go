@@ -72,7 +72,7 @@ func (p *pacer) TimeUntilSend() time.Time {
 	// We might need to round up this value.
 	// Otherwise, we might have a budget (slightly) smaller than the datagram size when the timer expires.
 	if bw == 0 {
-		panic("TODO: bw is 0?") //TODONOW: remove
+		panic("Zero bandwidth?")
 	}
 	d := diff / bw
 	// this is effectively a math.Ceil, but using only integer math
