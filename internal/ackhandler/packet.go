@@ -17,6 +17,9 @@ type packet struct {
 	Length          protocol.ByteCount
 	EncryptionLevel protocol.EncryptionLevel
 
+	// DEBUG_TAG
+	IsBPFRegisteredPacket bool // This packet is registered in the BPF
+
 	IsPathMTUProbePacket bool // We don't report the loss of Path MTU probe packets to the congestion controller.
 
 	includedInBytesInFlight bool

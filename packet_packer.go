@@ -417,7 +417,6 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			kp = oneRTTSealer.KeyPhase()
 
 			// PRIO_PACKS_TAG
-			// connID = p.getDestConnID(PrioCoalescedPacket)
 			connIDDummy, err := protocol.GenerateConnectionID(int(protocol.PriorityConnIDLen))
 			if err != nil {
 				panic("error generating dummy connection id")
@@ -437,8 +436,7 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 			for i := range oneRTTPayload.streamFrames {
 				f := &oneRTTPayload.streamFrames[i]
 				sid := f.Frame.StreamID
-				prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
-				// fmt.Printf("stream with id %d has priority %d (coalesced)\n", sid, prio_tmp)
+				prio_tmp := p.GetPriority(sid)
 				prio = max(prio, prio_tmp)
 			}
 
@@ -539,7 +537,6 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	pn, pnLen := p.pnManager.PeekPacketNumber(protocol.Encryption1RTT)
 
 	// PRIO_PACKS_TAG
-	// connID := p.getDestConnID(PrioAppendPacket)
 	connIDDummy, err := protocol.GenerateConnectionID(int(protocol.PriorityConnIDLen))
 	if err != nil {
 		panic("error generating dummy connection id")
@@ -559,8 +556,7 @@ func (p *packetPacker) appendPacket(buf *packetBuffer, onlyAck bool, maxPacketSi
 	for i := range pl.streamFrames {
 		f := &pl.streamFrames[i]
 		sid := f.Frame.StreamID
-		prio_tmp := p.GetPriority(sid) // TODOME how to get the priority?
-		// fmt.Printf("stream with id %d has priority %d (append)\n", sid, prio_tmp)
+		prio_tmp := p.GetPriority(sid)
 		prio = max(prio, prio_tmp)
 	}
 
@@ -664,6 +660,9 @@ func (p *packetPacker) maybeGetAppDataPacketFor0RTT(sealer sealer, maxPacketSize
 
 func (p *packetPacker) maybeGetShortHeaderPacket(sealer handshake.ShortHeaderSealer, hdrLen protocol.ByteCount, maxPacketSize protocol.ByteCount, onlyAck, ackAllowed bool, v protocol.Version) payload {
 	maxPayloadSize := maxPacketSize - hdrLen - protocol.ByteCount(sealer.Overhead())
+	if p.connection.RemoteAddr().String() != packet_setting.SERVER_ADDR && p.framer.HasData() {
+		packet_setting.DebugPrintln("BBBB shpacket")
+	}
 	return p.maybeGetAppDataPacket(maxPayloadSize, onlyAck, ackAllowed, v)
 }
 
@@ -677,7 +676,7 @@ func (p *packetPacker) maybeGetAppDataPacket(maxPayloadSize protocol.ByteCount, 
 		}
 		// the packet only contains an ACK
 		if p.numNonAckElicitingAcks >= protocol.MaxNonAckElicitingAcks {
-			ping := &wire.PingFrame{}
+			ping := &wire.PingFrame{} // TODONOW: pings correctly handled?
 			pl.frames = append(pl.frames, ackhandler.Frame{Frame: ping})
 			pl.length += ping.Length(v)
 			p.numNonAckElicitingAcks = 0
@@ -713,8 +712,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			pl.length += ack.Length(v)
 			hasAck = true
 
-			// STREAM_ONLY_TAG // TODO: make sure streams are always sent in a separate packet
-			// fmt.Println("ACK frame added to packet", ack.LargestAcked(), ack.LowestAcked())
+			// STREAM_ONLY_TAG
 			return pl
 		}
 	}
@@ -764,8 +762,14 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			pl.length += f.Length(v)
 
 			// STREAM_ONLY_TAG
+			// RETRANSMISSION_TAG
 			// TODO: what exactly is sent here? Any need to leave this function early to
 			// TODO: ensure that streams are always sent in a separate packet?
+			// TODO: only leave early if its the right connection and bpf stuff is enabled
+
+			if p.connection.LocalAddr().String() == packet_setting.SERVER_ADDR {
+				return pl
+			}
 		}
 	}
 
@@ -794,11 +798,18 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		pl.length += lengthAdded
 
 		// STREAM_PER_PACKET_TAG
-		// TODO: remove
+		// Making sure it's only one stream frame per packet
 		if len(pl.streamFrames) > 1 {
 			panic("more than one stream frame in a packet")
 		}
 	}
+
+	if packet_setting.IS_RELAY {
+		for _, f := range pl.streamFrames {
+			packet_setting.RetransmitDebug(f.Frame.Data)
+		}
+	}
+
 	return pl
 }
 
@@ -1009,6 +1020,9 @@ func (p *packetPacker) appendShortHeaderPacket(
 	var paddingLen protocol.ByteCount
 	if pl.length < 4-protocol.ByteCount(pnLen) {
 		paddingLen = 4 - protocol.ByteCount(pnLen) - pl.length
+		if !packet_setting.IS_RELAY && !packet_setting.IS_CLIENT {
+			fmt.Println("padding len", paddingLen, "pl.length", pl.length, "pnLen", pnLen)
+		}
 	}
 	paddingLen += padding
 
@@ -1026,7 +1040,11 @@ func (p *packetPacker) appendShortHeaderPacket(
 	}
 
 	if !isMTUProbePacket {
-		if size := protocol.ByteCount(len(raw) + sealer.Overhead()); size > maxPacketSize {
+		seal_overhead := sealer.Overhead()
+		// if crypto_turnoff.CRYPTO_TURNED_OFF { // TODONOW: necessary?
+		// 	seal_overhead = 0
+		// }
+		if size := protocol.ByteCount(len(raw) + seal_overhead); size > maxPacketSize {
 			return shortHeaderPacket{}, fmt.Errorf("PacketPacker BUG: packet too large (%d bytes, allowed %d bytes)", size, maxPacketSize)
 		}
 	}
@@ -1091,9 +1109,24 @@ func (p *packetPacker) appendPacketPayload(raw []byte, pl payload, paddingLen pr
 		}
 	}
 
+	// DEBUG_TAG
+	// if packet_setting.BPF_TURNED_ON {
+	// 	if len(pl.frames) > 0 && len(pl.streamFrames) > 0 ||
+	// 		len(pl.streamFrames) > 1 {
+	// 		panic(">0")
+	// 	} else {
+	// 		//fmt.Println("All good")
+	// 	}
+	// }
+
+	// BPF_TAG
+	// STREAM_ID_TAG
+	// TODO: since the stream id lenght is fixed for now quic-go thinks there is a bug / inconsistency
+	// if !packet_setting.BPF_TURNED_ON { // TODO: how to handle this?
 	if payloadSize := protocol.ByteCount(len(raw)-payloadOffset) - paddingLen; payloadSize != pl.length {
 		return nil, fmt.Errorf("PacketPacker BUG: payload size inconsistent (expected %d, got %d bytes)", pl.length, payloadSize)
 	}
+	// }
 	return raw, nil
 }
 

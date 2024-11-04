@@ -6,6 +6,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/utils"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 )
 
 type streamFlowController struct {
@@ -48,10 +49,13 @@ func NewStreamFlowController(
 	}
 }
 
+// RETRANSMISSION_TAG // TODO: how to handle retransmissions here?
+var turnofffornow = false
+
 // UpdateHighestReceived updates the highestReceived value, if the offset is higher.
 func (c *streamFlowController) UpdateHighestReceived(offset protocol.ByteCount, final bool) error {
 	// If the final offset for this stream is already known, check for consistency.
-	if c.receivedFinalOffset {
+	if c.receivedFinalOffset && !turnofffornow { // TODONOW: what to do with retranmissions that cause problems here?
 		// If we receive another final offset, check that it's the same.
 		if final && offset != c.highestReceived {
 			return &qerr.TransportError{
@@ -76,8 +80,8 @@ func (c *streamFlowController) UpdateHighestReceived(offset protocol.ByteCount, 
 	}
 	// A higher offset was received before.
 	// This can happen due to reordering.
-	if offset <= c.highestReceived {
-		if final {
+	if offset <= c.highestReceived && !turnofffornow { // TODONOW: what to do with retranmissions that cause problems here?
+		if final && !packet_setting.BPF_TURNED_ON { // TODO: handle correctly
 			return &qerr.TransportError{
 				ErrorCode:    qerr.FinalSizeError,
 				ErrorMessage: fmt.Sprintf("received final offset %d for stream %d, but already received offset %d before", offset, c.streamID, c.highestReceived),
@@ -88,7 +92,7 @@ func (c *streamFlowController) UpdateHighestReceived(offset protocol.ByteCount, 
 
 	increment := offset - c.highestReceived
 	c.highestReceived = offset
-	if c.checkFlowControlViolation() {
+	if c.checkFlowControlViolation() { // TODONOW: changes here needed bc of retransmissions?
 		return &qerr.TransportError{
 			ErrorCode:    qerr.FlowControlError,
 			ErrorMessage: fmt.Sprintf("received %d bytes on stream %d, allowed %d bytes", offset, c.streamID, c.receiveWindow),

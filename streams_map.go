@@ -64,6 +64,33 @@ type streamsMap struct {
 
 var _ streamManager = &streamsMap{}
 
+// BPF_CC_TAG
+// RETRANSMISSION_TAG
+func (m *streamsMap) GetSender() *streamSender {
+	return &m.sender
+}
+
+// BPF_CC_TAG
+// RETRANSMISSION_TAG
+func (m *streamsMap) GetNewFlowController() *func(protocol.StreamID) flowcontrol.StreamFlowController {
+	return &m.newFlowController
+}
+
+// BPF_CC_TAG
+// RETRANSMISSION_TAG
+func (m *streamsMap) AddToStreams(id protocol.StreamID, str SendStream) {
+	m.mutex.Lock()
+	m.outgoingUniStreams.mutex.Lock() // TODO: not manually here but use a function of outgoingUniStreams?
+
+	m.outgoingUniStreams.streams[id.StreamNum()] = str.(sendStreamI)
+	old_ns := m.outgoingUniStreams.nextStream
+	tmp := protocol.StreamNum((id-3)/4 + 1) // TODO corresponding streamnum even needed?
+	m.outgoingUniStreams.nextStream = max(old_ns, tmp+1)
+
+	m.outgoingUniStreams.mutex.Unlock()
+	m.mutex.Unlock()
+}
+
 func newStreamsMap(
 	sender streamSender,
 	newFlowController func(protocol.StreamID) flowcontrol.StreamFlowController,
@@ -185,6 +212,9 @@ func (m *streamsMap) OpenUniStream() (SendStream, error) {
 		return nil, Err0RTTRejected
 	}
 	str, err := mm.OpenStream()
+	if str.StreamID().Type() != protocol.StreamTypeUni {
+		panic("opened a unidirectional stream, but got a bidirectional stream")
+	}
 	return str, convertStreamError(err, protocol.StreamTypeBidi, m.perspective)
 }
 
@@ -208,6 +238,9 @@ func (m *streamsMap) OpenUniStreamSync(ctx context.Context) (SendStream, error) 
 		return nil, Err0RTTRejected
 	}
 	str, err := mm.OpenStreamSync(ctx)
+	if str.StreamID().Type() != protocol.StreamTypeUni {
+		panic("opened a unidirectional stream, but got a bidirectional stream")
+	}
 	return str, convertStreamError(err, protocol.StreamTypeUni, m.perspective)
 }
 

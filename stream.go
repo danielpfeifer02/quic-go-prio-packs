@@ -42,6 +42,7 @@ func (s *uniStreamSender) queueControlFrame(f wire.Frame) {
 }
 
 func (s *uniStreamSender) onHasStreamData(id protocol.StreamID) {
+	// fmt.Println("unistreamsender onHasStreamData OnLost") // TODO: why not called for retranmissions?
 	s.streamSender.onHasStreamData(id)
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
+	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
@@ -96,7 +97,16 @@ func (f *StreamFrame) Append(b []byte, _ protocol.Version) ([]byte, error) {
 		typ ^= 0b100
 	}
 	b = append(b, typ)
-	b = quicvarint.Append(b, uint64(f.StreamID))
+
+	// BPF_TAG
+	// STREAM_ID_TAG
+	// To allow the BPF code to change the stream ID it is fized to a size of 8 bytes
+	if packet_setting.BPF_TURNED_ON {
+		b = quicvarint.AppendWithMinSize(b, uint64(f.StreamID), 8)
+	} else {
+		b = quicvarint.Append(b, uint64(f.StreamID))
+	}
+
 	if hasOffset {
 		b = quicvarint.Append(b, uint64(f.Offset))
 	}
@@ -109,7 +119,15 @@ func (f *StreamFrame) Append(b []byte, _ protocol.Version) ([]byte, error) {
 
 // Length returns the total length of the STREAM frame
 func (f *StreamFrame) Length(version protocol.Version) protocol.ByteCount {
-	length := 1 + quicvarint.Len(uint64(f.StreamID))
+	// BPF_TAG
+	// STREAM_ID_LENGTH_TAG
+	// To allow the BPF code to change the stream ID it is fized to a size of 8 bytes
+	length := protocol.ByteCount(0)
+	if packet_setting.BPF_TURNED_ON {
+		length += 1 + 8
+	} else {
+		length += 1 + quicvarint.Len(uint64(f.StreamID))
+	}
 	if f.Offset != 0 {
 		length += quicvarint.Len(uint64(f.Offset))
 	}
@@ -127,7 +145,14 @@ func (f *StreamFrame) DataLen() protocol.ByteCount {
 // MaxDataLen returns the maximum data length
 // If 0 is returned, writing will fail (a STREAM frame must contain at least 1 byte of data).
 func (f *StreamFrame) MaxDataLen(maxSize protocol.ByteCount, version protocol.Version) protocol.ByteCount {
-	headerLen := 1 + quicvarint.Len(uint64(f.StreamID))
+	// STREAM_ID_LENGHT_TAG
+	var sid_len protocol.ByteCount
+	if packet_setting.BPF_TURNED_ON {
+		sid_len = 8
+	} else {
+		sid_len = quicvarint.Len(uint64(f.StreamID))
+	}
+	headerLen := 1 + sid_len
 	if f.Offset != 0 {
 		headerLen += quicvarint.Len(uint64(f.Offset))
 	}

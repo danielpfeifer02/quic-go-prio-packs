@@ -1,8 +1,12 @@
 package packet_setting
 
 import (
+	"fmt"
 	"net"
 	"sync"
+	"time"
+
+	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 )
 
 // TODO: how to make this prettier?
@@ -42,6 +46,54 @@ type PacketRegisterContainerBPF struct {
 	PacketNumber int64
 	SentTime     int64
 	Length       int64
+	Offset       int64
+
+	RawData []byte
+
+	Frames       []GeneralFrame
+	StreamFrames []StreamFrame
+}
+
+type RetransmissionPacketContainer struct {
+	PacketNumber int64
+	Length       int64
+	Timestamp    int64
+	RawData      []byte
+	Valid        bool
+}
+
+type StreamFrame struct {
+	StreamID       protocol.StreamID
+	Offset         protocol.ByteCount
+	Data           []byte
+	Fin            bool
+	DataLenPresent bool
+}
+
+type GeneralFrame struct {
+}
+
+type CongestionWindowData struct {
+	MinRTT      time.Duration
+	SmoothedRTT time.Duration
+	LatestRTT   time.Duration
+	RTTVariance time.Duration
+
+	CongestionWindow protocol.ByteCount
+	BytesInFlight    protocol.ByteCount
+	PacketsInFlight  int
+}
+
+type PacketNumberMapping struct {
+	OriginalPacketNumber int64
+	NewPacketNumber      int64
+}
+
+type PacketIdentifierStruct struct {
+	PacketNumber    uint64
+	StreamID        uint64
+	ConnectionID    []uint8
+	ConnectionIDLen uint8
 }
 
 var (
@@ -54,19 +106,36 @@ var (
 	ConnectionUpdateBPFHandler      func(id []byte, l uint8, conn QuicConnection) = nil
 	PacketNumberIncrementBPFHandler func(pn int64, conn QuicConnection)           = nil
 
+	// RETRANSMISSION_TAG
+	// STREAM_ID_TAG
+	MarkStreamIdAsRetransmission func(stream_id uint64, conn QuicConnection) = nil
+	MarkPacketAsRetransmission   func(PacketIdentifierStruct)                = nil
+
+	// BPF_CC_TAG
+	// CONGESTION_WINDOW_TAG
+	HandleCongestionMetricUpdate func(data CongestionWindowData, conn QuicConnection) = nil
+
+	// RETRANSMISSON_TAG
+	StoreServerPacket                           func(pn, ts int64, data []byte, conn QuicConnection)                  = nil
+	RemoveServerPacket                          func(pn int64, conn QuicConnection)                                   = nil
+	StoreRelayPacket                            func(pn, ts int64, data []byte, conn QuicConnection)                  = nil
+	RemoveRelayPacket                           func(pn int64, conn QuicConnection)                                   = nil
+	GetRetransmitServerPacketAfterPNTranslation func(bpf_pn int64, conn QuicConnection) RetransmissionPacketContainer = nil
+
 	// get the largest sent packet number of a connection
 	ConnectionGetLargestSentPacketNumber func(conn QuicConnection) int64 = nil
 
 	// Important note: this function should return "pn, err" in case of an error
 	AckTranslationBPFHandler         func(pn int64, conn QuicConnection) (int64, error) = nil
 	AckTranslationDeletionBPFHandler func(pn int64, conn QuicConnection)                = nil
-	// CheckIfAckShouldBeIgnored func(pn int64, conn QuicConnection) bool           = nil // TODO: remove
 
 	SERVER_ADDR    string = "192.168.10.1:4242"
 	RELAY_ADDR     string = "192.168.11.2:4242"
 	RELAY_OOB_ADDR string = "192.168.11.2:12345"
 	IS_CLIENT      bool   = false
-	EXCHANGE_PRIOS bool   = true
+	IS_RELAY       bool   = false
+	EXCHANGE_PRIOS bool   = false // TODO: what's the smarter default value?
+	BPF_TURNED_ON  bool   = true
 
 	RangeTranslationMap             map[Range]Range = make(map[Range]Range)
 	IndividualAckTranslationMap     map[int64]int64 = make(map[int64]int64)
@@ -75,5 +144,36 @@ var (
 	// BPF_CC_TAG
 	BPF_PACKET_REGISTRATION bool = false
 
+	BPF_PACKET_RETRANSMISSION bool = true
+
+	RELAY_CWND_DATA_PRINT bool = true
+
 	ReceivedPacketAtTimestampHandler func(pn, ts int64, conn QuicConnection) = nil
+
+	RetransmissionStreamMap map[protocol.StreamID]interface{} = make(map[protocol.StreamID]interface{})
+
+	DEBUG_PRINT bool = false
+
+	AckedCache     map[int64]bool = make(map[int64]bool)
+	AckedCacheLock sync.Mutex     = sync.Mutex{}
+
+	PacketOriginatedAtRelay func(pn int64) bool = nil
+
+	VALID_FLAG          uint32 = 1 << 0
+	USERSPACE_FLAG      uint32 = 1 << 1
+	RETRANSMISSION_FLAG uint32 = 1 << 2
 )
+
+func DebugPrintln(s ...any) {
+	if DEBUG_PRINT {
+		fmt.Println(s...)
+	}
+}
+
+func RetransmitDebug(data []byte) {
+	l := len(data)
+	b := data[l-1] == 0x69 && data[l-2] == 0x69 && data[l-3] == 0x69
+	if b {
+		fmt.Println("retransmit debug")
+	}
+}

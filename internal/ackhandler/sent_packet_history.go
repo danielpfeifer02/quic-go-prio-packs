@@ -2,6 +2,7 @@ package ackhandler
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
@@ -15,9 +16,12 @@ type sentPacketHistory struct {
 
 	highestPacketNumber protocol.PacketNumber
 
-	// BPF_CC_TAG // TODO: clean up whats not needed
-	updateLargestSent func(pn protocol.PacketNumber)
-	largestSent       protocol.PacketNumber
+	largestSent protocol.PacketNumber
+
+	// DEBUG_TAG
+	translation_map map[protocol.PacketNumber]protocol.PacketNumber
+
+	insertionMutex *sync.Mutex
 }
 
 func newSentPacketHistory() *sentPacketHistory {
@@ -25,6 +29,9 @@ func newSentPacketHistory() *sentPacketHistory {
 		packets:             make([]*packet, 0, 32),
 		highestPacketNumber: protocol.InvalidPacketNumber,
 		largestSent:         protocol.InvalidPacketNumber,
+		insertionMutex:      &sync.Mutex{},
+		// DEBUG_TAG
+		translation_map: make(map[protocol.PacketNumber]protocol.PacketNumber),
 	}
 }
 
@@ -70,51 +77,43 @@ func (h *sentPacketHistory) SentAckElicitingPacket(p *packet) {
 	}
 }
 
-// BPF_CC_TAG
-func (h *sentPacketHistory) SentBPFPacket(prc packet_setting.PacketRegisterContainerBPF, pns *packetNumberSpace) {
-	// TODONOW: what is needed here?
-	pn := protocol.PacketNumber(prc.PacketNumber)
-	tm := time.Unix(0, prc.SentTime)
-	le := protocol.ByteCount(prc.Length)
+// DEBUG_TAG
+func (h *sentPacketHistory) SentBPFPacket(p_in *packet) {
 
-	// We also need to update the largest sent packet number
-	// from the sent_packet_handler
-	if pn > pns.largestSent {
-		pns.largestSent = pn
+	if p_in.PacketNumber > h.highestPacketNumber {
+		h.highestPacketNumber = p_in.PacketNumber
 	}
-
-	// We do not check for sequential packet number use for BPF packets
-	// since those could be "registered" out of order. (TODONOW: i think?)
-
-	bpf_packet := &packet{ // TODO: what fields should be set here?
-		SendTime:        tm,
-		PacketNumber:    pn,
-		StreamFrames:    nil,
-		Frames:          nil,
-		LargestAcked:    protocol.InvalidPacketNumber,
-		Length:          le,
-		EncryptionLevel: protocol.Encryption0RTT,
-	}
-
 	// Insert the BPF packet at the correct position
 	// (i.e., the position of the first packet with a higher packet number)
 	// lock := &sync.Mutex{}
-	for i, p := range h.packets {
-		// go func(p *packet, i int, lock *sync.Mutex) {
-		if p == nil || p.PacketNumber > pn {
-			h.packets = append(h.packets[:i], append([]*packet{bpf_packet}, h.packets[i:]...)...)
 
-			h.numOutstanding++
+	p_in.SendTime = time.Now()
+	p_in.IsBPFRegisteredPacket = true
+
+	pn := p_in.PacketNumber
+	for i := 0; i <= len(h.packets); i++ {
+		var p *packet
+		if i == len(h.packets) {
+			p = nil
+		} else {
+			p = h.packets[i]
+		}
+		// TODO: would a go routine here cause better performance?
+		if p == nil || p.PacketNumber > pn {
+			h.packets = append(h.packets[:i], append([]*packet{p_in}, h.packets[i:]...)...)
+
+			if p_in.outstanding() {
+				h.numOutstanding++
+			}
 
 			if pn > h.highestPacketNumber {
 				h.highestPacketNumber = pn
 			}
-
 			return
 
 		}
-		// }(p, i, lock) // TODONOW: use go routine with lock?
 	}
+	panic("This should not happen (BPF packet insertion failed)")
 }
 
 // Iterate iterates through all packets.
@@ -229,24 +228,6 @@ func (h *sentPacketHistory) getIndex(p protocol.PacketNumber) (int, bool) {
 			}
 		}
 		return 0, false
-
-		// // Do binary search for the index and return 0, false if
-		// // the index is not found
-		// low := 0
-		// high := len(h.packets) - 1
-		// for low <= high {
-		// 	mid := (low + high) / 2
-		// 	if h.packets[mid].PacketNumber == p {
-		// 		return mid, true
-		// 	}
-		// 	if h.packets[mid].PacketNumber < p {
-		// 		low = mid + 1
-		// 	} else {
-		// 		high = mid - 1
-		// 	}
-		// }
-		// return 0, false
-
 	}
 
 	index := int(p - first)
@@ -293,5 +274,38 @@ func (h *sentPacketHistory) DeclareLost(pn protocol.PacketNumber) {
 	h.packets[idx] = nil
 	if idx == 0 {
 		h.cleanupStart()
+	}
+}
+
+// BPF_RETRANSMISSION_TAG
+func (h *sentPacketHistory) UpdatePacketNumberMapping(mapping packet_setting.PacketNumberMapping) {
+
+	for i, p := range h.packets {
+		if p == nil {
+			continue
+		}
+		if p.PacketNumber == protocol.PacketNumber(mapping.OriginalPacketNumber) {
+
+			index_for_insertion := 0
+			for j, p := range h.packets {
+				if p == nil {
+					continue
+				}
+				if p.PacketNumber > protocol.PacketNumber(mapping.NewPacketNumber) {
+					index_for_insertion = j
+					break
+				}
+			}
+
+			history_without := append(h.packets[:i], h.packets[i+1:]...)
+			p.PacketNumber = protocol.PacketNumber(mapping.NewPacketNumber)
+			if p.PacketNumber > h.highestPacketNumber {
+				h.highestPacketNumber = p.PacketNumber
+			}
+			p.SendTime = time.Now() // time.Unix(0, 1<<63-1) // TODO: remove
+			h.packets = append(history_without[:index_for_insertion], append([]*packet{p}, history_without[index_for_insertion:]...)...)
+			h.translation_map[protocol.PacketNumber(mapping.NewPacketNumber)] = protocol.PacketNumber(mapping.OriginalPacketNumber)
+			return
+		}
 	}
 }

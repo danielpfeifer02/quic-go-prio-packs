@@ -55,7 +55,7 @@ func setupHandler(www string) http.Handler {
 		mux.Handle("/", http.FileServer(http.Dir(www)))
 	} else {
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Printf("%#v\n", r)
+			//fmt.Printf("%#v\n", r)
 			const maxSize = 1 << 30 // 1 GB
 			num, err := strconv.ParseInt(strings.ReplaceAll(r.RequestURI, "/", ""), 10, 64)
 			if err != nil || num <= 0 || num > maxSize {
@@ -90,7 +90,7 @@ func setupHandler(www string) http.Handler {
 	mux.HandleFunc("/demo/echo", func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			fmt.Printf("error reading body while handling /echo: %s\n", err.Error())
+			//fmt.Printf("error reading body while handling /echo: %s\n", err.Error())
 		}
 		w.Write(body)
 	})
@@ -158,7 +158,7 @@ func main() {
 		certFile, keyFile = testdata.GetCertificatePaths()
 	}
 	for _, b := range bs {
-		fmt.Println("listening on", b)
+		//fmt.Println("listening on", b)
 		bCap := b
 		go func() {
 			var err error
@@ -175,7 +175,7 @@ func main() {
 				err = server.ListenAndServeTLS(certFile, keyFile)
 			}
 			if err != nil {
-				fmt.Println(err)
+				//fmt.Println(err)
 			}
 			wg.Done()
 		}()

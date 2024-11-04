@@ -71,6 +71,9 @@ func (q *retransmissionQueue) addAppData(f wire.Frame) {
 	if _, ok := f.(*wire.StreamFrame); ok {
 		panic("STREAM frames are handled with their respective streams.")
 	}
+
+	// DEBUG_TAG
+	// //fmt.Println("addAppData")
 	q.appData = append(q.appData, f)
 }
 

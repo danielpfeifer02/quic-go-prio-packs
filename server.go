@@ -364,6 +364,7 @@ func (s *baseServer) handlePacket(p receivedPacket) {
 	default:
 		s.logger.Debugf("Dropping packet from %s (%d bytes). Server receive queue full.", p.remoteAddr, p.Size())
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
+			//fmt.Println("THREE DOS")
 			s.tracer.DroppedPacket(p.remoteAddr, logging.PacketTypeNotDetermined, p.Size(), logging.PacketDropDOSPrevention)
 		}
 	}
@@ -477,6 +478,7 @@ func (s *baseServer) handle0RTTPacket(p receivedPacket) bool {
 	if q, ok := s.zeroRTTQueues[connID]; ok {
 		if len(q.packets) >= protocol.Max0RTTQueueLen {
 			if s.tracer != nil && s.tracer.DroppedPacket != nil {
+				//fmt.Println("FOUR DOS")
 				s.tracer.DroppedPacket(p.remoteAddr, logging.PacketType0RTT, p.Size(), logging.PacketDropDOSPrevention)
 			}
 			return false
@@ -487,6 +489,7 @@ func (s *baseServer) handle0RTTPacket(p receivedPacket) bool {
 
 	if len(s.zeroRTTQueues) >= protocol.Max0RTTQueues {
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
+			//fmt.Println("FIVE DOS")
 			s.tracer.DroppedPacket(p.remoteAddr, logging.PacketType0RTT, p.Size(), logging.PacketDropDOSPrevention)
 		}
 		return false
@@ -515,6 +518,7 @@ func (s *baseServer) cleanupZeroRTTQueues(now time.Time) {
 		}
 		for _, p := range q.packets {
 			if s.tracer != nil && s.tracer.DroppedPacket != nil {
+				//fmt.Println("SIX DOS")
 				s.tracer.DroppedPacket(p.remoteAddr, logging.PacketType0RTT, p.Size(), logging.PacketDropDOSPrevention)
 			}
 			p.buffer.Release()

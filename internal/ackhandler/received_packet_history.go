@@ -1,7 +1,6 @@
 package ackhandler
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
@@ -44,7 +43,7 @@ func (h *receivedPacketHistory) ReceivedPacket(p protocol.PacketNumber) bool /* 
 
 		// PACKET_NUMBER_TAG
 		if packet_setting.PRINT_PACKET_RECEIVING_INFO {
-			fmt.Println("ReceivedPacket: Ignoring delayed packet with pn", p, "because it is below deletedBelow", h.deletedBelow)
+			//fmt.Println("ReceivedPacket: Ignoring delayed packet with pn", p, "because it is below deletedBelow", h.deletedBelow)
 		}
 
 		return false
@@ -52,7 +51,7 @@ func (h *receivedPacketHistory) ReceivedPacket(p protocol.PacketNumber) bool /* 
 
 	// PACKET_NUMBER_TAG
 	if packet_setting.PRINT_PACKET_RECEIVING_INFO {
-		fmt.Println("ReceivedPacket: Received packet with pn", p)
+		//fmt.Println("ReceivedPacket: Received packet with pn", p)
 	}
 
 	isNew := h.addToRanges(p)

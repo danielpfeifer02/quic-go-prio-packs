@@ -152,7 +152,7 @@ func (h *connIDManager) updateConnectionID() {
 	}
 
 	qf := h.queue.Front()
-	// fmt.Printf("Removing conn ID with prio %d\n", qf.Value.ConnectionID.Bytes()[0])
+	// //fmt.Printf("Removing conn ID with prio %d\n", qf.Value.ConnectionID.Bytes()[0])
 	front := h.queue.Remove(qf)
 	h.activeSequenceNumber = front.SequenceNumber
 	h.activeConnectionID = front.ConnectionID
@@ -210,7 +210,7 @@ func (h *connIDManager) shouldUpdateConnID() bool {
 			break
 		}
 	}
-	// fmt.Printf("Trying to remove priority %d, onlyIDOfPriority: %t\n", currentPriority, onlyIDOfPriority)
+	// //fmt.Printf("Trying to remove priority %d, onlyIDOfPriority: %t\n", currentPriority, onlyIDOfPriority)
 	return 2*h.queue.Len() >= protocol.MaxActiveConnectionIDs &&
 		h.packetsSinceLastChange >= h.packetsPerConnectionID &&
 		!onlyIDOfPriority
@@ -270,6 +270,4 @@ func (h *connIDManager) SwitchToPriorityID(prio Priority) {
 			return
 		}
 	}
-
-	fmt.Println("No connection ID with the requested priority found. (%d)", prio)
 }

@@ -239,16 +239,19 @@ func (f *AckFrame) LowestAcked() protocol.PacketNumber {
 
 // AcksPacket determines if this ACK frame acks a certain packet number
 func (f *AckFrame) AcksPacket(p protocol.PacketNumber) bool {
-
+	
 	if p < f.LowestAcked() || p > f.LargestAcked() {
 		return false
 	}
 
+	// BPF_ACK_TAG
 	i := sort.Search(len(f.AckRanges), func(i int) bool {
-		return p >= f.AckRanges[i].Smallest
+		acks := p >= f.AckRanges[i].Smallest
+		return acks
 	})
 	// i will always be < len(f.AckRanges), since we checked above that p is not bigger than the largest acked
-	return p <= f.AckRanges[i].Largest
+	acks := p <= f.AckRanges[i].Largest
+	return acks
 }
 
 func (f *AckFrame) Reset() {
@@ -281,8 +284,6 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 
 	removable_indices := make([]int, 0)
 	boundaries_buffer := make([]packet_setting.Range, 0)
-
-	// fmt.Println()
 
 	for i := 0; i < len(f.AckRanges); i++ { // TODONOW: AckRanges are only the ranges of ACKed pns without the gaps right?
 
@@ -325,7 +326,6 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 			}
 		}
 		if err != nil {
-			// fmt.Println("Whole range empty")
 			removable_indices = append(removable_indices, i)
 			continue
 		}
@@ -362,7 +362,6 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 		packet_setting.RangeTranslationMap[packet_setting.Range{Smallest: int64(smallest), Largest: int64(largest)}] =
 			packet_setting.Range{Smallest: new_smallest, Largest: new_largest}
 
-		// fmt.Println("Translated range: ", smallest, largest, new_smallest, new_largest)
 		boundaries_buffer = append(boundaries_buffer,
 			packet_setting.Range{Smallest: smallest_translated, Largest: largest_translated})
 
@@ -372,8 +371,6 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 		f.AckRanges = append(f.AckRanges[:removable_indices[i]], f.AckRanges[removable_indices[i]+1:]...)
 	}
 
-	// TODO: this causes problems when run concurrently
-	// go func(f *AckFrame, conn packet_setting.QuicConnection) {
 	if packet_setting.AckTranslationDeletionBPFHandler != nil {
 		// It is fine here to use the already trimmed ranges
 		// since we never remove any pn that can be translated
@@ -398,6 +395,5 @@ func (f *AckFrame) UpdateAckRanges(conn packet_setting.QuicConnection) { // TODO
 			}
 		}
 	}
-	// }(f, conn)
 
 }

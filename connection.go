@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/logging"
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
+	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
 )
 
 type unpacker interface {
@@ -62,6 +64,12 @@ type streamManager interface {
 
 	// PRIO_PACKS_TAG
 	GetPriority(StreamID) Priority
+
+	// BPF_CC_TAG
+	// RETRANSMISSION_TAG
+	GetSender() *streamSender
+	GetNewFlowController() *func(protocol.StreamID) flowcontrol.StreamFlowController
+	AddToStreams(protocol.StreamID, SendStream)
 }
 
 type cryptoStreamHandler interface {
@@ -523,7 +531,10 @@ func (s *connection) preSetup() {
 		uint64(s.config.MaxIncomingUniStreams),
 		s.perspective,
 	)
-	s.framer = newFramer(s.streamsMap)
+
+	// RETRANSMISSION_TAG
+	// DEBUG_TAG
+	s.framer = newFramer(s.streamsMap, s)
 	s.receivedPackets = make(chan receivedPacket, protocol.MaxConnUnprocessedPackets)
 	s.closeChan = make(chan closeError, 1)
 	s.sendingScheduled = make(chan struct{}, 1)
@@ -921,6 +932,55 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 	return processed
 }
 
+// BPF_CC_TAG
+// CACHING_TAG
+// RETRANSMISSION_TAG
+func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.GeneralFrame, []packet_setting.StreamFrame, error) {
+	frames := make([]packet_setting.GeneralFrame, 0)
+	stream_frames := make([]packet_setting.StreamFrame, 0)
+
+	// Apparently parsing the frame causes some wrong internal state in the connection
+	// that's why we use a throwaway connection
+	// To avoid this overhead one could use the parsing of the frames that happens anyway
+	// later in handleFrames but this was easier to work with / debug if it was separated
+	// TODONOW: combine with other parsing
+	// TODONOW: is any state from previous packets needed for decoding
+	// TODONOW: i.e. is a throwaway connection not 100% correct?
+	throwaway_parser := *wire.NewFrameParser(s.config.EnableDatagrams)
+
+	// For now only one frame per packet. This is a simplification and can be changed later to "for len(data) > 0"
+	l, frame, err := throwaway_parser.ParseNext(data, protocol.Encryption1RTT, s.version)
+	if err != nil {
+		panic(err)
+	}
+	data = data[l:]
+
+	if frame == nil {
+		return frames, stream_frames, nil // TODO: how to handle correctly
+	}
+
+	if stream_frame, ok := frame.(*wire.StreamFrame); ok {
+		ps_sf := packet_setting.StreamFrame{
+			StreamID:       stream_frame.StreamID,
+			Offset:         stream_frame.Offset,
+			Data:           stream_frame.Data,
+			Fin:            stream_frame.Fin,
+			DataLenPresent: stream_frame.DataLenPresent,
+		}
+		stream_frames = append(stream_frames, ps_sf)
+	} else if _, ok := frame.(*wire.DatagramFrame); ok {
+		return nil, nil, errors.New("Datagram")
+	} else {
+		fmt.Println("Omitting some frame. For now only stream frames are supported", reflect.TypeOf(frame)) // TODONOW: handle all frames that can occur
+		return frames, stream_frames, nil                                                                   // TODO handle correctly
+	}
+	if len(data) > 0 {
+		panic("Not all data was consumed")
+	}
+	// }
+	return frames, stream_frames, nil
+}
+
 func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protocol.ConnectionID) bool {
 	var wasQueued bool
 
@@ -935,6 +995,20 @@ func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protoc
 	if err != nil {
 		wasQueued = s.handleUnpackError(err, p, logging.PacketType1RTT)
 		return false
+	}
+
+	// CACHING_TAG
+	// RETRANSMISSION_TAG
+	// TODONOW: add storage of server_pn to data mapping here for retransmission
+	// TODONOW: make sure only relay does this
+	if packet_setting.StoreServerPacket != nil && s.RemoteAddr().String() == packet_setting.SERVER_ADDR {
+		data_dup := make([]byte, len(data))
+		copy(data_dup, data)
+
+		ts := p.rcvTime.UnixNano()
+
+		// fmt.Println("Store pn", pn)
+		packet_setting.StoreServerPacket(int64(pn), ts, data_dup, s)
 	}
 
 	// BPF_CC_TAG
@@ -1297,6 +1371,7 @@ func (s *connection) handleFrames(
 	}
 	handshakeWasComplete := s.handshakeComplete
 	var handleErr error
+
 	for len(data) > 0 {
 		l, frame, err := s.frameParser.ParseNext(data, encLevel, s.version)
 		if err != nil {
@@ -1401,6 +1476,7 @@ func (s *connection) handlePacket(p receivedPacket) {
 	case s.receivedPackets <- p:
 	default:
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
+			//fmt.Println("ONE DOS")
 			s.tracer.DroppedPacket(logging.PacketTypeNotDetermined, protocol.InvalidPacketNumber, p.Size(), logging.PacketDropDOSPrevention)
 		}
 	}
@@ -1464,7 +1540,6 @@ func (s *connection) handleHandshakeEvents() error {
 }
 
 func (s *connection) handleStreamFrame(frame *wire.StreamFrame) error {
-	// fmt.Println(frame.StreamID)
 	str, err := s.streamsMap.GetOrOpenReceiveStream(frame.StreamID)
 	if err != nil {
 		return err
@@ -1578,15 +1653,6 @@ func (s *connection) handleHandshakeDoneFrame() error {
 }
 
 func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.EncryptionLevel) error {
-
-	// BPF_MAP_TAG
-	// BPF_CC_TAG
-	// frame.UpdateAckRanges(s)
-	// if len(frame.AckRanges) == 0 {
-	// 	return nil
-	// }
-
-	// fmt.Println("Connection handleAckFrame", s.sentPacketHandler)
 
 	acked1RTTPacket, err := s.sentPacketHandler.ReceivedAck(frame, encLevel, s.lastPacketReceivedTime)
 	if err != nil {
@@ -2142,6 +2208,8 @@ func (s *connection) registerPackedShortHeaderPacket(p shortHeaderPacket, ecn pr
 	if p.Ack != nil {
 		largestAcked = p.Ack.LargestAcked()
 	}
+	// DEBUG_TAG
+	// Everything needed for retransmit happens in SentPacket!
 	s.sentPacketHandler.SentPacket(now, p.PacketNumber, largestAcked, p.StreamFrames, p.Frames, protocol.Encryption1RTT, ecn, p.Length, p.IsPathMTUProbePacket)
 	s.connIDManager.SentPacket()
 }
@@ -2338,7 +2406,7 @@ type PriorityWriter interface {
 	Write([]byte) (int, error)
 }
 
-// TODONOW
+// TODONOW: old approach. Still needed?
 // PRIO_PACKS_TAG
 func readPriorityFromStream(str PriorityReader) Priority {
 	if !packet_setting.EXCHANGE_PRIOS {
@@ -2350,15 +2418,15 @@ func readPriorityFromStream(str PriorityReader) Priority {
 	_, err := str.Read(meta)
 	if err != nil {
 		// panic("Failed to read stream priority when accepting stream")
-		fmt.Println("Failed to read stream priority when accepting stream")
+		//fmt.Println("Failed to read stream priority when accepting stream")
 		return priority_setting.NoPriority
 	}
 	prio := priority_setting.Priority(meta[0])
-	fmt.Println("Internally read priority (1 byte)")
+	//fmt.Println("Internally read priority (1 byte)")
 	return prio
 }
 
-// TODONOW
+// TODONOW: old approach. Still needed?
 func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
 	if !packet_setting.EXCHANGE_PRIOS {
 		return
@@ -2369,7 +2437,7 @@ func writePriorityToStream(str PriorityWriter, prio priority_setting.Priority) {
 	if err != nil {
 		panic("Failed to write stream priority when opening stream")
 	}
-	fmt.Println("Internally written priority (1 byte)")
+	//fmt.Println("Internally written priority (1 byte)")
 }
 
 // AcceptStream returns the next stream openend by the peer
@@ -2489,6 +2557,7 @@ func (s *connection) tryQueueingUndecryptablePacket(p receivedPacket, pt logging
 	}
 	if len(s.undecryptablePackets)+1 > protocol.MaxUndecryptablePackets {
 		if s.tracer != nil && s.tracer.DroppedPacket != nil {
+			//fmt.Println("TWO DOS")
 			s.tracer.DroppedPacket(pt, protocol.InvalidPacketNumber, p.Size(), logging.PacketDropDOSPrevention)
 		}
 		s.logger.Infof("Dropping undecryptable packet (%d bytes). Undecryptable packet queue full.", p.Size())
@@ -2517,7 +2586,13 @@ func (s *connection) onHasConnectionWindowUpdate() {
 }
 
 func (s *connection) onHasStreamData(id protocol.StreamID) {
+	packet_setting.DebugPrintln("connection.go onHasStreamData")
 	s.framer.AddActiveStream(id)
+	tmp := s.packer.(*packetPacker).framer.(framer)
+	if !reflect.DeepEqual(tmp, s.framer) {
+		panic("Framer not the same")
+	}
+
 	s.scheduleSending()
 }
 
@@ -2588,7 +2663,7 @@ func (s *connection) SetPacketNumber(pn int64) {
 	pn_typed := protocol.PacketNumber(pn)
 
 	if !packet_setting.ALLOW_SETTING_PN {
-		fmt.Println("Trying to set packet number when not allowed (connection.go)")
+		//fmt.Println("Trying to set packet number when not allowed (connection.go)")
 		return
 	}
 	sph := s.sentPacketHandler
@@ -2612,9 +2687,169 @@ func (s *connection) Unlock() {
 	s.mutex.Unlock()
 }
 
+// BPF_RETRANSMISSION_TAG
+func (s *connection) UpdatePacketNumberMapping(mapping packet_setting.PacketNumberMapping) {
+	// //fmt.Println("Updating pn from", mapping.OriginalPacketNumber, "to", mapping.NewPacketNumber)
+	s.sentPacketHandler.UpdatePacketNumberMapping(mapping)
+}
+
 // BPF_CC_TAG
 func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContainerBPF) {
-	// fmt.Println("Connection RegisterBPFPacket", s.sentPacketHandler)
-	ackhandler.Tmp = s.sentPacketHandler
-	s.sentPacketHandler.RegisterBPFPacket(prc)
+
+	// TODO: what needs to be done here:
+	// 1. Parse the packet and get the stream frames
+	// 2. Create a sendstream for each frame in the stream frames (and potentially reuse them)
+	// 3. Change the OnLost function of the send_stream to handle bpf retranmissions separately
+	// 4. Make sure the Registering method of sentPacketHandler has access to the handlers to correctly use them
+	// 5. Register the packet with the sent packet handler
+
+	// Set the frames for the packet
+	// //fmt.Println("Parse pn", prc.PacketNumber)
+	_, stream_frames, err := s.parseBPFSavedRawData(prc.RawData)
+	if err != nil {
+		if strings.Contains(err.Error(), "Datagram") {
+			//fmt.Println("Ignoring DatagramFrame for registration")
+			return // We ignore datagram packets here since we cannot rule them out earlier (// TODO: we probably could rule them out in the BPF code)
+		}
+		panic(err)
+	}
+	if len(stream_frames) == 0 {
+		return
+	}
+
+	prc.Frames = make([]packet_setting.GeneralFrame, 0)
+	prc.StreamFrames = stream_frames
+
+	handler_lut := make(map[protocol.StreamID]ackhandler.FrameHandler)
+	for _, sf := range stream_frames {
+
+		id := sf.StreamID
+		sender := s.streamsMap.GetSender()
+		nfc := s.streamsMap.GetNewFlowController()
+
+		str := newSendStream(id, *sender, (*nfc)(id))
+
+		s.streamsMap.AddToStreams(protocol.StreamID(id), str)
+
+		str.overwrittenOnLost = OnLost
+		str.overwrittenOnAcked = OnAcked
+
+		if packet_setting.MarkStreamIdAsRetransmission != nil { // ! TODONOW: still needded (seems that way)? -> why still needed?
+			packet_setting.MarkStreamIdAsRetransmission(uint64(id), s) // TODO: type int64 to uint64 ok?
+		}
+
+		handler_lut[sf.StreamID] = (*sendStreamAckHandler)(str)
+	}
+
+	s.sentPacketHandler.RegisterBPFPacket(prc, handler_lut)
+}
+
+func OnAcked(f wire.Frame) {
+	// TODO: prolly remove payload saved in map
+}
+
+func OnLost(f wire.Frame, s *sendStreamAckHandler) {
+
+	if !packet_setting.IS_RELAY {
+		panic("This code should only be executed on the relay")
+	}
+
+	sf := f.(*wire.StreamFrame)
+
+	if s.streamID != sf.StreamID {
+		panic("Stream ID mismatch")
+	}
+
+	s.mutex.Lock()
+	if s.cancelWriteErr != nil {
+		s.mutex.Unlock()
+		return
+	}
+	sf.DataLenPresent = true
+	if len(sf.Data) == 0 {
+		fmt.Println("No data in stream frame") // TODO: why happening? - I thought this might happen since the data cannot be found if the retransmit is a retransmit of a retransmit but seems to happen because of smth else
+		return
+	}
+
+	// TODO:
+	// This seems to be a workaround for the problem that the lib does not send retransmissions reliably if i just add them to the retransmission queue
+	// The problem here seems to be that the header needs to be set manually as well - this might even be a good thing since the header flags are dependent
+	// on the data that is sent anyway, e.g. fin flag and a new stream might screw this up.
+	// Things to consider:
+	// header form seem trivial since only short header packets should be considered here (todo: long header packets from setup considered normally already?)
+	// packet number length is fixed to 4 bytes iirc
+	// destination conn id might be tricky? but the connection is known so it should be gettable somehow
+	// packetnumber is known from registration - is it also known here? -> doesnt matter since the old pn is not needed / a new one is used. This might screw with the "telling bpf about a retransmit" though
+	// payload is obviously known
+
+	conn := s.sender.(*connection)
+	conn_id := conn.connIDManager.activeConnectionID
+	pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
+	pnLen := protocol.PacketNumberLen2
+	offset := sf.Offset
+
+	// TODO: tell bpf about retransmit with this pn
+	if packet_setting.MarkPacketAsRetransmission != nil {
+		packet_identifier := packet_setting.PacketIdentifierStruct{
+			PacketNumber:    uint64(pn),
+			StreamID:        uint64(sf.StreamID),
+			ConnectionID:    conn_id.Bytes(),
+			ConnectionIDLen: uint8(conn_id.Len()),
+		}
+		packet_setting.MarkPacketAsRetransmission(packet_identifier)
+		fmt.Println("Marked packet (", pn, sf.StreamID, ") as retransmission")
+	}
+
+	sh_buf := make([]byte, 0)
+	sh_buf, err := wire.AppendShortHeader(sh_buf, conn_id, pn, pnLen, protocol.KeyPhaseZero)
+	if err != nil {
+		panic(err)
+	}
+	datasize := len(sh_buf) + len(sf.Data) + 1 /* frame type */ + 8 /* stream id */ + 0 /* padding length todo: why 1??? */
+
+	var pack_buf *packetBuffer
+	if datasize <= protocol.MaxPacketBufferSize {
+		pack_buf = getPacketBuffer()
+	} else if datasize <= protocol.MaxLargePacketBufferSize {
+		pack_buf = getLargePacketBuffer()
+	} else {
+		panic("Packet too large")
+	}
+
+	pack_buf.Data = append(pack_buf.Data, sh_buf...) // adding short header
+
+	frame_header := make([]byte, 1)
+	frame_header[0] = 0x08                                                            // Stream frame type
+	frame_header = quicvarint.AppendWithMinSize(frame_header, uint64(sf.StreamID), 8) // fixed size of 8 bytes for stream id
+	if offset > 0 {
+		frame_header = quicvarint.Append(frame_header, uint64(offset))
+		frame_header[0] |= 0x04 // set offset bit
+	}
+
+	frame_header_with_data := append(frame_header, sf.Data...)
+
+	// We need to store the data (with the frame header already attached) in the retransmission "cache".
+	// This makes the data accessible if the retransmission gets lost.
+	if packet_setting.StoreRelayPacket != nil {
+		data_dup := make([]byte, len(frame_header_with_data))
+		copy(data_dup, frame_header_with_data)
+
+		ts := time.Now().UnixNano()
+
+		fmt.Print("Store pn ", pn)
+		packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
+	}
+
+	pack_buf.Data = append(pack_buf.Data, frame_header_with_data...) // adding frame header and data
+
+	conn.sendQueue.Send(pack_buf, 0, protocol.ECNNon)
+
+	s.mutex.Unlock()
+
+	// TODO: for some reason this approach does not work even thought the "normal"
+	// TODO: OnLost function does it this way.
+	// s.retransmissionQueue = append(s.retransmissionQueue, sf)
+	// s.mutex.Unlock()
+	// s.sender.onHasStreamData(s.streamID)
+
 }

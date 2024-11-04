@@ -56,6 +56,10 @@ type sendStream struct {
 
 	// PRIO_PACKS_TAG
 	priority priority_setting.Priority
+
+	// RETRANSMISSION_TAG
+	overwrittenOnLost  func(wire.Frame, *sendStreamAckHandler)
+	overwrittenOnAcked func(wire.Frame)
 }
 
 var (
@@ -76,6 +80,10 @@ func newSendStream(
 		writeOnce:      make(chan struct{}, 1), // cap: 1, to protect against concurrent use of Write
 		// PRIO_PACKS_TAG
 		priority: priority_setting.NoPriority,
+
+		// RETRANSMISSION_TAG
+		overwrittenOnLost:  nil,
+		overwrittenOnAcked: nil,
 	}
 	s.ctx, s.ctxCancel = context.WithCancelCause(context.Background())
 	return s
@@ -86,6 +94,11 @@ func (s *sendStream) StreamID() protocol.StreamID {
 }
 
 func (s *sendStream) Write(p []byte) (int, error) {
+	return s.WriteFinConsidering(p, false, &wire.StreamFrame{})
+}
+
+// RETRANSMISSION_TAG
+func (s *sendStream) WriteFinConsidering(p []byte, forceFin bool, sf *wire.StreamFrame) (int, error) {
 	// Concurrent use of Write is not permitted (and doesn't make any sense),
 	// but sometimes people do it anyway.
 	// Make sure that we only execute one call at any given time to avoid hard to debug failures.
@@ -127,14 +140,35 @@ func (s *sendStream) Write(p []byte) (int, error) {
 		// When the user now calls Close(), this is much more likely to happen before we popped that last STREAM frame,
 		// allowing us to set the FIN bit on that frame (instead of sending an empty STREAM frame with FIN).
 		if s.canBufferStreamFrame() && len(s.dataForWriting) > 0 {
+
+			// if packet_setting.IS_RELAY {
+			// 	//fmt.Println("Test-------------------------------------------------")
+			// 	//fmt.Println(hex.Dump(s.dataForWriting))
+			// }
+
 			if s.nextFrame == nil {
 				f := wire.GetStreamFrame()
+
+				// RETRANSMISSION_TAG
+				// TODO: correct to only have here?
+				if forceFin {
+					f.Fin = sf.Fin
+					f.Offset = sf.Offset
+					f.DataLenPresent = sf.DataLenPresent
+					// f.Data = sf.Data
+				}
+
 				f.Offset = s.writeOffset
 				f.StreamID = s.streamID
 				f.DataLenPresent = true
 				f.Data = f.Data[:len(s.dataForWriting)]
 				copy(f.Data, s.dataForWriting)
 				s.nextFrame = f
+
+				// RETRANSMISSION_TAG
+				if forceFin {
+					s.nextFrame = sf
+				}
 			} else {
 				l := len(s.nextFrame.Data)
 				s.nextFrame.Data = s.nextFrame.Data[:l+len(s.dataForWriting)]
@@ -207,6 +241,7 @@ func (s *sendStream) canBufferStreamFrame() bool {
 func (s *sendStream) popStreamFrame(maxBytes protocol.ByteCount, v protocol.Version) (af ackhandler.StreamFrame, ok, hasMore bool) {
 	s.mutex.Lock()
 	f, hasMoreData := s.popNewOrRetransmittedStreamFrame(maxBytes, v)
+
 	if f != nil {
 		s.numOutstandingFrames++
 	}
@@ -227,6 +262,7 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 	}
 
 	if len(s.retransmissionQueue) > 0 {
+		// DEBUG_TAG
 		f, hasMoreRetransmissions := s.maybeGetRetransmission(maxBytes, v)
 		if f != nil || hasMoreRetransmissions {
 			if f == nil {
@@ -272,6 +308,7 @@ func (s *sendStream) popNewOrRetransmittedStreamFrame(maxBytes protocol.ByteCoun
 	if f.Fin {
 		s.finSent = true
 	}
+
 	return f, hasMoreData
 }
 
@@ -327,6 +364,8 @@ func (s *sendStream) maybeGetRetransmission(maxBytes protocol.ByteCount, v proto
 		return newFrame, true
 	}
 	s.retransmissionQueue = s.retransmissionQueue[1:]
+	// TODONOW: can it happen here that more than one stream frame will end up in a packet?
+	// TODONOW: do we even care about this since its sent from userspace and bpf only changes pn etc?
 	return f, len(s.retransmissionQueue) > 0
 }
 
@@ -474,6 +513,12 @@ type sendStreamAckHandler sendStream
 var _ ackhandler.FrameHandler = &sendStreamAckHandler{}
 
 func (s *sendStreamAckHandler) OnAcked(f wire.Frame) {
+
+	if s.overwrittenOnAcked != nil {
+		s.overwrittenOnAcked(f)
+		return
+	}
+
 	sf := f.(*wire.StreamFrame)
 	sf.PutBack()
 	s.mutex.Lock()
@@ -494,7 +539,14 @@ func (s *sendStreamAckHandler) OnAcked(f wire.Frame) {
 }
 
 func (s *sendStreamAckHandler) OnLost(f wire.Frame) {
+
+	if s.overwrittenOnLost != nil {
+		s.overwrittenOnLost(f, s)
+		return
+	}
+
 	sf := f.(*wire.StreamFrame)
+
 	s.mutex.Lock()
 	if s.cancelWriteErr != nil {
 		s.mutex.Unlock()
