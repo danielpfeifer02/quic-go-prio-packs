@@ -152,6 +152,8 @@ var (
 
 	RetransmissionStreamMap map[protocol.StreamID]interface{} = make(map[protocol.StreamID]interface{})
 
+	RetransmissionPacketNumberTranslationHandler func(old_pn, new_pn int64, conn QuicConnection) = nil
+
 	DEBUG_PRINT bool = false
 
 	AckedCache     map[int64]bool = make(map[int64]bool)

@@ -60,6 +60,7 @@ type sendStream struct {
 	// RETRANSMISSION_TAG
 	overwrittenOnLost  func(wire.Frame, *sendStreamAckHandler)
 	overwrittenOnAcked func(wire.Frame)
+	lostPacketNumber   int64
 }
 
 var (

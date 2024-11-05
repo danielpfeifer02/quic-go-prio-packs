@@ -1007,7 +1007,6 @@ func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protoc
 
 		ts := p.rcvTime.UnixNano()
 
-		// fmt.Println("Store pn", pn)
 		packet_setting.StoreServerPacket(int64(pn), ts, data_dup, s)
 	}
 
@@ -2704,7 +2703,6 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 	// 5. Register the packet with the sent packet handler
 
 	// Set the frames for the packet
-	// //fmt.Println("Parse pn", prc.PacketNumber)
 	_, stream_frames, err := s.parseBPFSavedRawData(prc.RawData)
 	if err != nil {
 		if strings.Contains(err.Error(), "Datagram") {
@@ -2733,6 +2731,7 @@ func (s *connection) RegisterBPFPacket(prc packet_setting.PacketRegisterContaine
 
 		str.overwrittenOnLost = OnLost
 		str.overwrittenOnAcked = OnAcked
+		str.lostPacketNumber = prc.PacketNumber
 
 		if packet_setting.MarkStreamIdAsRetransmission != nil { // ! TODONOW: still needded (seems that way)? -> why still needed?
 			packet_setting.MarkStreamIdAsRetransmission(uint64(id), s) // TODO: type int64 to uint64 ok?
@@ -2787,6 +2786,11 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 	pn := conn.sentPacketHandler.PopPacketNumber(protocol.Encryption1RTT)
 	pnLen := protocol.PacketNumberLen2
 	offset := sf.Offset
+	lostPn := s.lostPacketNumber
+
+	if packet_setting.RetransmissionPacketNumberTranslationHandler != nil {
+		packet_setting.RetransmissionPacketNumberTranslationHandler(lostPn, int64(pn), conn)
+	}
 
 	// TODO: tell bpf about retransmit with this pn
 	if packet_setting.MarkPacketAsRetransmission != nil {
@@ -2797,7 +2801,6 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 			ConnectionIDLen: uint8(conn_id.Len()),
 		}
 		packet_setting.MarkPacketAsRetransmission(packet_identifier)
-		fmt.Println("Marked packet (", pn, sf.StreamID, ") as retransmission")
 	}
 
 	sh_buf := make([]byte, 0)
@@ -2836,7 +2839,6 @@ func OnLost(f wire.Frame, s *sendStreamAckHandler) {
 
 		ts := time.Now().UnixNano()
 
-		fmt.Print("Store pn ", pn)
 		packet_setting.StoreRelayPacket(int64(pn), ts, data_dup, nil) // TODO: conn not used rn? only necessary in case of using this library for multiple connections?
 	}
 
