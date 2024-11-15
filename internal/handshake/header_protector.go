@@ -68,12 +68,20 @@ func (p *aesHeaderProtector) DecryptHeader(sample []byte, firstByte *byte, hdrBy
 	if crypto_turnoff.CRYPTO_TURNED_OFF {
 		return
 	}
+	// NO_HEADER_PROTECTION_TAG
+	if crypto_turnoff.HEADER_PROTECTION_TURNED_OFF {
+		return
+	}
 	p.apply(sample, firstByte, hdrBytes)
 }
 
 func (p *aesHeaderProtector) EncryptHeader(sample []byte, firstByte *byte, hdrBytes []byte) {
 	// NO_CRYPTO_TAG
 	if crypto_turnoff.CRYPTO_TURNED_OFF {
+		return
+	}
+	// NO_HEADER_PROTECTION_TAG
+	if crypto_turnoff.HEADER_PROTECTION_TURNED_OFF {
 		return
 	}
 	p.apply(sample, firstByte, hdrBytes)
@@ -118,12 +126,20 @@ func (p *chachaHeaderProtector) DecryptHeader(sample []byte, firstByte *byte, hd
 	if crypto_turnoff.CRYPTO_TURNED_OFF {
 		return
 	}
+	// NO_HEADER_PROTECTION_TAG
+	if crypto_turnoff.HEADER_PROTECTION_TURNED_OFF {
+		return
+	}
 	p.apply(sample, firstByte, hdrBytes)
 }
 
 func (p *chachaHeaderProtector) EncryptHeader(sample []byte, firstByte *byte, hdrBytes []byte) {
 	// NO_CRYPTO_TAG
 	if crypto_turnoff.CRYPTO_TURNED_OFF {
+		return
+	}
+	// NO_HEADER_PROTECTION_TAG
+	if crypto_turnoff.HEADER_PROTECTION_TURNED_OFF {
 		return
 	}
 	p.apply(sample, firstByte, hdrBytes)

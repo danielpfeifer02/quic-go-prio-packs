@@ -25,6 +25,7 @@ type cipherSuite struct {
 func (s cipherSuite) IVLen() int { return aeadNonceLength }
 
 func getCipherSuite(id uint16) *cipherSuite {
+	id = tls.TLS_CHACHA20_POLY1305_SHA256 // TODO: why not correctly chosen due to config?
 	switch id {
 	case tls.TLS_AES_128_GCM_SHA256:
 		return &cipherSuite{ID: tls.TLS_AES_128_GCM_SHA256, Hash: crypto.SHA256, KeyLen: 16, AEAD: aeadAESGCMTLS13}
@@ -65,7 +66,7 @@ func aeadAESGCMTLS13(key, nonceMask []byte) *xorNonceAEAD {
 }
 
 func aeadChaCha20Poly1305(key, nonceMask []byte) *xorNonceAEAD {
-	if len(nonceMask) != aeadNonceLength {
+	if len(nonceMask) != aeadNonceLength { // 96 bit nonce
 		panic("tls: internal error: wrong nonce length")
 	}
 	aead, err := chacha20poly1305.New(key)

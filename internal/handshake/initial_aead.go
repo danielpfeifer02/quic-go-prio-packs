@@ -28,7 +28,8 @@ func getSalt(v protocol.Version) []byte {
 	return quicSaltV1
 }
 
-var initialSuite = getCipherSuite(tls.TLS_AES_128_GCM_SHA256)
+// TODO: why necessary and not correctly handled when adapting config?
+var initialSuite = &cipherSuite{ID: tls.TLS_AES_128_GCM_SHA256, Hash: crypto.SHA256, KeyLen: 16, AEAD: aeadAESGCMTLS13} // getCipherSuite(tls.TLS_AES_128_GCM_SHA256)
 
 // NewInitialAEAD creates a new AEAD for Initial encryption / decryption.
 func NewInitialAEAD(connID protocol.ConnectionID, pers protocol.Perspective, v protocol.Version) (LongHeaderSealer, LongHeaderOpener) {
