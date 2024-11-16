@@ -2,7 +2,9 @@ package quic
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
@@ -155,10 +157,18 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 		return 0, 0, 0, nil, &headerParseError{parseErr}
 	}
 	pn = opener.DecodePacketNumber(pn, pnLen)
+
+	length := 40
+	fmt.Println("\n\nRECEIVER: raw undecrypted")
+	fmt.Println(hex.Dump(data[:length])) // TODO: remove
+	fmt.Println("type", reflect.TypeOf(opener))
 	decrypted, err := opener.Open(data[l:l], data[l:], rcvTime, pn, kp, data[:l])
 	if err != nil {
 		return 0, 0, 0, nil, err
 	}
+	fmt.Println("\n\nRECEIVER: raw decrypted")
+	fmt.Println(hex.Dump(decrypted[:length])) // TODO: remove
+
 	return pn, pnLen, kp, decrypted, parseErr
 }
 

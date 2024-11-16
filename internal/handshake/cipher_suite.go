@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/tls"
 	"fmt"
+	"reflect"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -115,13 +116,30 @@ func (f *xorNonceAEAD) Open(out, nonce, ciphertext, additionalData []byte) ([]by
 		return ciphertext, nil
 	}
 
+	// fmt.Print("\n\n\nCiphertext: ") // TODO: remove
+	// for i := 0; i < len(ciphertext); i++ {
+	// 	fmt.Printf("%x ", ciphertext[i])
+	// }
+	// fmt.Println()
+
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
 	}
+	fmt.Println("\nf.aead.Open(...) type: ", reflect.TypeOf(f.aead))
 	result, err := f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
 	}
+
+	// fmt.Print("\n\n\nPlaintext: ") // TODO: remove
+	// for i := 0; i < len(result); i++ {
+	// 	if (i < 'Z' && i > 'A') || (i < 'z' && i > 'a') {
+	// 		fmt.Print(string(result[i]))
+	// 	} else {
+	// 		fmt.Print("*")
+	// 	}
+	// }
+	// fmt.Println()
 
 	return result, err
 }
