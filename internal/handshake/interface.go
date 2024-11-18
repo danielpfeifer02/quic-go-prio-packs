@@ -38,6 +38,9 @@ type ShortHeaderOpener interface {
 	headerDecryptor
 	DecodePacketNumber(wirePN protocol.PacketNumber, wirePNLen protocol.PacketNumberLen) protocol.PacketNumber
 	Open(dst, src []byte, rcvTime time.Time, pn protocol.PacketNumber, kp protocol.KeyPhaseBit, associatedData []byte) ([]byte, error)
+
+	// EBPF_CRYPTO_TAG
+	Start1RTTCryptoBitstreamStorage(pn protocol.PacketNumber)
 }
 
 // LongHeaderSealer seals a long header packet

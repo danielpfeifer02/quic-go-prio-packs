@@ -112,6 +112,7 @@ func (u *packetUnpacker) UnpackLongHeader(hdr *wire.Header, rcvTime time.Time, d
 
 func (u *packetUnpacker) UnpackShortHeader(rcvTime time.Time, data []byte) (protocol.PacketNumber, protocol.PacketNumberLen, protocol.KeyPhaseBit, []byte, error) {
 	opener, err := u.cs.Get1RTTOpener()
+
 	if err != nil {
 		return 0, 0, 0, nil, err
 	}
@@ -150,6 +151,7 @@ func (u *packetUnpacker) unpackLongHeaderPacket(opener handshake.LongHeaderOpene
 
 func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpener, rcvTime time.Time, data []byte) (protocol.PacketNumber, protocol.PacketNumberLen, protocol.KeyPhaseBit, []byte, error) {
 	l, pn, pnLen, kp, parseErr := u.unpackShortHeader(opener, data)
+
 	// If the reserved bits are set incorrectly, we still need to continue unpacking.
 	// This avoids a timing side-channel, which otherwise might allow an attacker
 	// to gain information about the header encryption.
@@ -159,7 +161,7 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 	pn = opener.DecodePacketNumber(pn, pnLen)
 
 	length := 40
-	fmt.Println("\n\nRECEIVER: raw undecrypted")
+	fmt.Println("\n\nRECEIVER: raw undecrypted (pn: ", pn, ")")
 	fmt.Println(hex.Dump(data[:length])) // TODO: remove
 	fmt.Println("type", reflect.TypeOf(opener))
 	decrypted, err := opener.Open(data[l:l], data[l:], rcvTime, pn, kp, data[:l])

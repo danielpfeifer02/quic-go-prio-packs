@@ -126,6 +126,11 @@ func (f *xorNonceAEAD) Open(out, nonce, ciphertext, additionalData []byte) ([]by
 		f.nonceMask[4+i] ^= b
 	}
 	fmt.Println("\nf.aead.Open(...) type: ", reflect.TypeOf(f.aead))
+	fmt.Print("nonce: ")
+	for i := 0; i < len(f.nonceMask); i++ {
+		fmt.Printf("%02x ", f.nonceMask[i])
+	}
+	fmt.Println()
 	result, err := f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
@@ -142,4 +147,16 @@ func (f *xorNonceAEAD) Open(out, nonce, ciphertext, additionalData []byte) ([]by
 	// fmt.Println()
 
 	return result, err
+}
+
+// EBPF_CRYPTO_TAG
+func (f *xorNonceAEAD) Start1RTTCryptoBitstreamStorage(nonce []byte, pn uint64) {
+	for i, b := range nonce {
+		f.nonceMask[4+i] ^= b
+	}
+	chacha20 := f.aead.(*chacha20poly1305.Chacha20poly1305)
+	chacha20.Start1RTTCryptoBitstreamStorage(f.nonceMask[:], pn)
+	for i, b := range nonce {
+		f.nonceMask[4+i] ^= b
+	}
 }

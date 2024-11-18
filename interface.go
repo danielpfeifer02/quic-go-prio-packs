@@ -281,6 +281,9 @@ type Connection interface {
 	// // BPF_CC_TAG
 	// // RETRANSMISSION_TAG
 	// GetOrOpenSendStream(StreamID) (SendStream, error)
+
+	// EBPF_CRYPTO_TAG
+	Start1RTTCryptoBitstreamStorage()
 }
 
 // RTT_STATS_TAG

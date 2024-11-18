@@ -981,6 +981,31 @@ func (s *connection) parseBPFSavedRawData(data []byte) ([]packet_setting.General
 	return frames, stream_frames, nil
 }
 
+// EBPF_CRYPTO_TAG
+// This function allows the relay go program to start the generation of tls keys, nonces and xor masks
+// and stores them using a relay-developer defined function.
+// This function does "pre-generation", meaning that it generates the same keys, nonces and masks as the
+// normal crypto handling would but in a separate manner (for now).
+func (s *connection) Start1RTTCryptoBitstreamStorage() {
+	pack_unpacker := s.unpacker.(*packetUnpacker)
+
+	crypto_setup := pack_unpacker.cs
+	opener, err := crypto_setup.Get1RTTOpener()
+	if err != nil {
+		panic(err)
+	}
+
+	// We need to work with a copy of the opener, because the original opener is used by the connection
+	// This opener is of type updatableAEAD
+	opener_copy := opener // TODO: this is likely not a correct copy -> how to fix?
+
+	for i := 0; i < 10; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
+		pn := protocol.PacketNumber(i)
+		opener_copy.Start1RTTCryptoBitstreamStorage(pn)
+	}
+
+}
+
 func (s *connection) handleShortHeaderPacket(p receivedPacket, destConnID protocol.ConnectionID) bool {
 	var wasQueued bool
 

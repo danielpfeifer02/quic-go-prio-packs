@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
@@ -85,6 +86,7 @@ func newUpdatableAEAD(rttStats *utils.RTTStats, tracer *logging.ConnectionTracer
 }
 
 func (a *updatableAEAD) rollKeys() {
+
 	if a.prevRcvAEAD != nil {
 		a.logger.Debugf("Dropping key phase %d ahead of scheduled time. Drop time was: %s", a.keyPhase-1, a.prevRcvAEADExpiry)
 		if a.tracer != nil && a.tracer.DroppedKey != nil {
@@ -170,6 +172,18 @@ func (a *updatableAEAD) DecodePacketNumber(wirePN protocol.PacketNumber, wirePNL
 	return protocol.DecodePacketNumber(wirePNLen, a.highestRcvdPN, wirePN)
 }
 
+// EBPF_CRYPTO_TAG
+// This function will create the next iteration of key, nonce and xor bits for the decryption and store them for the ebpf usage.
+func (a *updatableAEAD) Start1RTTCryptoBitstreamStorage(pn protocol.PacketNumber) {
+
+	binary.BigEndian.PutUint64(a.nonceBuf[len(a.nonceBuf)-8:], uint64(pn)) // this should set the noncebuf correctly such that the future nonces will be correct
+
+	rcvaead := a.rcvAEAD // TODO: for the example only rcvAEAD is used. Add support for cases where this is not enough!
+	xoraead := rcvaead.(*xorNonceAEAD)
+	xoraead.Start1RTTCryptoBitstreamStorage(a.nonceBuf, uint64(pn))
+
+}
+
 func (a *updatableAEAD) Open(dst, src []byte, rcvTime time.Time, pn protocol.PacketNumber, kp protocol.KeyPhaseBit, ad []byte) ([]byte, error) {
 
 	// NO_CRYPTO_TAG
@@ -191,6 +205,18 @@ func (a *updatableAEAD) Open(dst, src []byte, rcvTime time.Time, pn protocol.Pac
 }
 
 func (a *updatableAEAD) open(dst, src []byte, rcvTime time.Time, pn protocol.PacketNumber, kp protocol.KeyPhaseBit, ad []byte) ([]byte, error) {
+
+	// TODO: remove
+	fmt.Println("cipher suite", a.suite)
+	fmt.Println("key phase", a.keyPhase, "kp", kp)
+	fmt.Println("prevRcvAEAD", reflect.TypeOf(a.prevRcvAEAD))
+	fmt.Println("rcvAEAD", reflect.TypeOf(a.rcvAEAD))
+	fmt.Println("nextRcvAEAD", reflect.TypeOf(a.nextRcvAEAD))
+	fmt.Println("sendAEAD", reflect.TypeOf(a.sendAEAD))
+	fmt.Println("nextSendAEAD", reflect.TypeOf(a.nextSendAEAD))
+	fmt.Println("noncebuf", a.nonceBuf)
+	fmt.Println("PacketNumber", pn)
+
 	if a.prevRcvAEAD != nil && !a.prevRcvAEADExpiry.IsZero() && rcvTime.After(a.prevRcvAEADExpiry) {
 		a.prevRcvAEAD = nil
 		a.logger.Debugf("Dropping key phase %d", a.keyPhase-1)
@@ -224,6 +250,7 @@ func (a *updatableAEAD) open(dst, src []byte, rcvTime time.Time, pn protocol.Pac
 				ErrorMessage: "keys updated too quickly",
 			}
 		}
+		fmt.Println("Rollkeys")
 		a.rollKeys()
 		a.logger.Debugf("Peer updated keys to %d", a.keyPhase)
 		// The peer initiated this key update. It's safe to drop the keys for the previous generation now.
