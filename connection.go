@@ -999,7 +999,7 @@ func (s *connection) Start1RTTCryptoBitstreamStorage() {
 	// This opener is of type updatableAEAD
 	opener_copy := opener // TODO: this is likely not a correct copy -> how to fix?
 
-	for i := 0; i < 10; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
+	for i := 0; i < 20; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
 		pn := protocol.PacketNumber(i)
 		opener_copy.Start1RTTCryptoBitstreamStorage(pn)
 	}

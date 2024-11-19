@@ -164,10 +164,16 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 	fmt.Println("\n\nRECEIVER: raw undecrypted (pn: ", pn, ")")
 	fmt.Println(hex.Dump(data[:length])) // TODO: remove
 	fmt.Println("type", reflect.TypeOf(opener))
-	decrypted, err := opener.Open(data[l:l], data[l:], rcvTime, pn, kp, data[:l])
-	if err != nil {
-		return 0, 0, 0, nil, err
+
+	decrypted := data[l:]
+	var err error
+	if !crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF {
+		decrypted, err = opener.Open(data[l:l], data[l:], rcvTime, pn, kp, data[:l])
+		if err != nil {
+			return 0, 0, 0, nil, err
+		}
 	}
+
 	fmt.Println("\n\nRECEIVER: raw decrypted")
 	fmt.Println(hex.Dump(decrypted[:length])) // TODO: remove
 
