@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"golang.org/x/exp/rand"
 
@@ -496,11 +497,14 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxPacketSize protocol.
 		}
 		packet.longHdrPackets = append(packet.longHdrPackets, longHdrPacket)
 	} else if oneRTTPayload.length > 0 {
-		shp, err := p.appendShortHeaderPacket(buffer, connID, oneRTTPacketNumber, oneRTTPacketNumberLen, kp, oneRTTPayload, 0, maxPacketSize, oneRTTSealer, false, v)
-		if err != nil {
-			return nil, err
+		// SINGLE_STREAM_PACKET_TAG
+		if initialPayload.length == 0 && handshakePayload.length == 0 && zeroRTTPayload.length == 0 { // TODO: remove. This is just to avoid mixing long and short header packets in the same coalesced packet.
+			shp, err := p.appendShortHeaderPacket(buffer, connID, oneRTTPacketNumber, oneRTTPacketNumberLen, kp, oneRTTPayload, 0, maxPacketSize, oneRTTSealer, false, v)
+			if err != nil {
+				return nil, err
+			}
+			packet.shortHdrPacket = &shp
 		}
-		packet.shortHdrPacket = &shp
 	}
 	return packet, nil
 }
@@ -780,6 +784,10 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		// STREAM_ONLY_TAG
 		// TODO: are control frames together with stream frames a problem? probably yes...
 		pl.frames, lengthAdded = p.framer.AppendControlFrames(pl.frames, maxFrameSize-pl.length, v)
+		fmt.Println("Number of control frames: ", len(pl.frames)-startLen, "Number of total frames: ", len(pl.frames))
+		for frame := range pl.frames {
+			fmt.Println("Frame type: ", reflect.TypeOf(pl.frames[frame].Frame))
+		}
 		pl.length += lengthAdded
 		// add handlers for the control frames that were added
 		for i := startLen; i < len(pl.frames); i++ {
@@ -791,6 +799,11 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 				pl.frames[i].Handler = p.retransmissionQueue.AppDataAckHandler()
 			}
 		}
+		// SINGLE_FRAME_TAG
+		// If packet already has one frame -> send it
+		// if len(pl.frames) > 0 && p.connection.LocalAddr().String() == packet_setting.SERVER_ADDR {
+		// 	return pl
+		// }
 
 		// STREAM_ONLY_TAG
 		// TODO: can there be more than one stream frame in a packet?
@@ -804,11 +817,7 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		}
 	}
 
-	if packet_setting.IS_RELAY {
-		for _, f := range pl.streamFrames {
-			packet_setting.RetransmitDebug(f.Frame.Data)
-		}
-	}
+	fmt.Println("Sending data: ", len(pl.streamFrames) > 0, len(pl.frames) > 0, pl.length > 0)
 
 	return pl
 }

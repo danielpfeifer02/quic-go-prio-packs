@@ -171,11 +171,3 @@ func DebugPrintln(s ...any) {
 		fmt.Println(s...)
 	}
 }
-
-func RetransmitDebug(data []byte) {
-	l := len(data)
-	b := data[l-1] == 0x69 && data[l-2] == 0x69 && data[l-3] == 0x69
-	if b {
-		fmt.Println("retransmit debug")
-	}
-}

@@ -919,7 +919,10 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 				processed = true
 			}
 			data = rest
+
+			fmt.Println("HandlePacket: Long Header")
 		} else {
+			fmt.Println("HandlePacket: Short Header")
 			if counter > 0 {
 				p.buffer.Split()
 			}
@@ -997,7 +1000,8 @@ func (s *connection) Start1RTTCryptoBitstreamStorage() {
 
 	// We need to work with a copy of the opener, because the original opener is used by the connection
 	// This opener is of type updatableAEAD
-	opener_copy := opener // TODO: this is likely not a correct copy -> how to fix?
+	updatable_aead := opener.(*handshake.UpdatableAEAD)
+	opener_copy := handshake.GetCopyOfUpdatableAEAD(updatable_aead) // TODO: this is likely not a completely correct copy -> how to fix?
 
 	for i := 0; i < 20; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
 		pn := protocol.PacketNumber(i)

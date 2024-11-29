@@ -2,6 +2,7 @@ package handshake
 
 import (
 	"encoding/binary"
+	"reflect"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
@@ -83,7 +84,13 @@ func (o *longHeaderOpener) Open(dst, src []byte, pn protocol.PacketNumber, ad []
 	}
 
 	binary.BigEndian.PutUint64(o.nonceBuf[:], uint64(pn))
-	dec, err := o.aead.Open(dst, o.nonceBuf[:], src, ad)
+	var dec []byte
+	var err error
+	if reflect.TypeOf(o.aead) == reflect.TypeOf(&xorNonceAEAD{}) {
+		dec, err = o.aead.OpenCallerConsidering(dst, o.nonceBuf[:], src, ad, true) // TODO: necessary in order to normally decrypt long header packets(?)
+	} else {
+		dec, err = o.aead.Open(dst, o.nonceBuf[:], src, ad)
+	}
 	if err == nil {
 		o.highestRcvdPN = max(o.highestRcvdPN, pn)
 	} else {

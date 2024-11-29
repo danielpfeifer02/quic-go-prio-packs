@@ -139,6 +139,7 @@ func (u *packetUnpacker) unpackLongHeaderPacket(opener handshake.LongHeaderOpene
 	}
 	extHdrLen := extHdr.ParsedLen()
 	extHdr.PacketNumber = opener.DecodePacketNumber(extHdr.PacketNumber, extHdr.PacketNumberLen)
+	fmt.Println("Long header opener.Open(...) type: ", reflect.TypeOf(opener))
 	decrypted, err := opener.Open(data[extHdrLen:extHdrLen], data[extHdrLen:], extHdr.PacketNumber, data[:extHdrLen])
 	if err != nil {
 		return nil, nil, err
@@ -167,7 +168,7 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 
 	decrypted := data[l:]
 	var err error
-	if !crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF {
+	if true || !crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF { // ! TODO: crypto_turnoff check might be wrong position here?
 		decrypted, err = opener.Open(data[l:l], data[l:], rcvTime, pn, kp, data[:l])
 		if err != nil {
 			return 0, 0, 0, nil, err

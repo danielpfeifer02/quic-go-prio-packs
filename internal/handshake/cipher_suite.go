@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"reflect"
 
@@ -109,7 +110,13 @@ func (f *xorNonceAEAD) Seal(out, nonce, plaintext, additionalData []byte) []byte
 	return result
 }
 
+var ctr = 0
+
 func (f *xorNonceAEAD) Open(out, nonce, ciphertext, additionalData []byte) ([]byte, error) {
+	return f.OpenCallerConsidering(out, nonce, ciphertext, additionalData, false)
+}
+
+func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalData []byte, longheadercall bool) ([]byte, error) {
 
 	// NO_CRYPTO_TAG
 	if crypto_turnoff.CRYPTO_TURNED_OFF {
@@ -131,7 +138,19 @@ func (f *xorNonceAEAD) Open(out, nonce, ciphertext, additionalData []byte) ([]by
 		fmt.Printf("%02x ", f.nonceMask[i])
 	}
 	fmt.Println()
-	result, err := f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
+
+	// TODO: correct here?
+	var result []byte
+	var err error
+	if ctr >= 0 && !longheadercall && crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF && reflect.TypeOf(f.aead) == reflect.TypeOf(&chacha20poly1305.Chacha20poly1305{}) { // ! TODO: remove (ctr > 3) - i.e. correctly handle gcm and other crypto
+		fmt.Println(hex.Dump(ciphertext))
+		result, err = ciphertext, nil
+	} else {
+		ctr += 1
+		fmt.Println(hex.Dump(ciphertext))
+		result, err = f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
+	}
+
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
 	}

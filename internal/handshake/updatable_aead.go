@@ -67,6 +67,8 @@ type updatableAEAD struct {
 	nonceBuf []byte
 }
 
+type UpdatableAEAD = updatableAEAD
+
 var (
 	_ ShortHeaderOpener = &updatableAEAD{}
 	_ ShortHeaderSealer = &updatableAEAD{}
@@ -82,6 +84,39 @@ func newUpdatableAEAD(rttStats *utils.RTTStats, tracer *logging.ConnectionTracer
 		tracer:                  tracer,
 		logger:                  logger,
 		version:                 version,
+	}
+}
+
+func GetCopyOfUpdatableAEAD(aead *updatableAEAD) *updatableAEAD {
+	return &updatableAEAD{
+		suite:                   aead.suite,
+		keyPhase:                aead.keyPhase,
+		largestAcked:            aead.largestAcked,
+		firstPacketNumber:       aead.firstPacketNumber,
+		handshakeConfirmed:      aead.handshakeConfirmed,
+		invalidPacketLimit:      aead.invalidPacketLimit,
+		invalidPacketCount:      aead.invalidPacketCount,
+		prevRcvAEADExpiry:       aead.prevRcvAEADExpiry,
+		prevRcvAEAD:             aead.prevRcvAEAD,
+		firstRcvdWithCurrentKey: aead.firstRcvdWithCurrentKey,
+		firstSentWithCurrentKey: aead.firstSentWithCurrentKey,
+		highestRcvdPN:           aead.highestRcvdPN,
+		numRcvdWithCurrentKey:   aead.numRcvdWithCurrentKey,
+		numSentWithCurrentKey:   aead.numSentWithCurrentKey,
+		rcvAEAD:                 aead.rcvAEAD,
+		sendAEAD:                aead.sendAEAD,
+		aeadOverhead:            aead.aeadOverhead,
+		nextRcvAEAD:             aead.nextRcvAEAD,
+		nextSendAEAD:            aead.nextSendAEAD,
+		nextRcvTrafficSecret:    aead.nextRcvTrafficSecret,
+		nextSendTrafficSecret:   aead.nextSendTrafficSecret,
+		headerDecrypter:         aead.headerDecrypter,
+		headerEncrypter:         aead.headerEncrypter,
+		rttStats:                aead.rttStats,
+		tracer:                  aead.tracer,
+		logger:                  aead.logger,
+		version:                 aead.version,
+		nonceBuf:                aead.nonceBuf,
 	}
 }
 

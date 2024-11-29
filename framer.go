@@ -97,14 +97,20 @@ func (f *framerI) AppendControlFrames(frames []ackhandler.Frame, maxLen protocol
 			frames = append(frames, ackhandler.Frame{Frame: frame})
 			length += frameLen
 			f.pathResponses = f.pathResponses[1:]
+
+			// SINGLE_FRAME_TAG
+			// return frames, length
 		}
 	}
 
+	// SINGLE_FRAME_TAG
+	/*for*/
 	for len(f.controlFrames) > 0 {
 		frame := f.controlFrames[len(f.controlFrames)-1]
 		frameLen := frame.Length(v)
 		if length+frameLen > maxLen {
-			break
+			// break
+			return frames, length
 		}
 		frames = append(frames, ackhandler.Frame{Frame: frame})
 		length += frameLen
