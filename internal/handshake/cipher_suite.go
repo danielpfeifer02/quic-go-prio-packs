@@ -110,11 +110,11 @@ func (f *xorNonceAEAD) Seal(out, nonce, plaintext, additionalData []byte) []byte
 	return result
 }
 
-var ctr = 0
-
 func (f *xorNonceAEAD) Open(out, nonce, ciphertext, additionalData []byte) ([]byte, error) {
 	return f.OpenCallerConsidering(out, nonce, ciphertext, additionalData, false)
 }
+
+var ctr = 0
 
 func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalData []byte, longheadercall bool) ([]byte, error) {
 
@@ -139,16 +139,33 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 	}
 	fmt.Println()
 
-	// TODO: correct here?
+	// TODONOW: something is wrong here when differentiating if decryption needs to be done or not
 	var result []byte
 	var err error
-	if ctr >= 0 && !longheadercall && crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF && reflect.TypeOf(f.aead) == reflect.TypeOf(&chacha20poly1305.Chacha20poly1305{}) { // ! TODO: remove (ctr > 3) - i.e. correctly handle gcm and other crypto
+	// TODO: remove
+	// BIG_TODO: this part seems to make ebpf crypto not being accepted later on
+	if false && !longheadercall && crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF && reflect.TypeOf(f.aead) == reflect.TypeOf(&chacha20poly1305.Chacha20poly1305{}) {
+		fmt.Println("special case", longheadercall)
 		fmt.Println(hex.Dump(ciphertext))
 		result, err = ciphertext, nil
 	} else {
 		ctr += 1
+		fmt.Println("normal case", longheadercall)
 		fmt.Println(hex.Dump(ciphertext))
+
+		ciphertext_copy := make([]byte, len(ciphertext))
+		copy(ciphertext_copy, ciphertext)
+
 		result, err = f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
+
+		if err != nil {
+			fmt.Println("Manual setting since error occured", err)
+			result = ciphertext_copy[:len(ciphertext_copy)-16] // remove aead overhead
+			err = nil
+		}
+
+		fmt.Println("translated to: (", len(result), err, ")")
+		fmt.Println(hex.Dump(result))
 	}
 
 	for i, b := range nonce {
