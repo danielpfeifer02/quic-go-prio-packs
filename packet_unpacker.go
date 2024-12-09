@@ -12,6 +12,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/protocol"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/qerr"
 	"github.com/danielpfeifer02/quic-go-prio-packs/internal/wire"
+	crypto_settings "golang.org/x/crypto"
 )
 
 type headerDecryptor interface {
@@ -139,7 +140,7 @@ func (u *packetUnpacker) unpackLongHeaderPacket(opener handshake.LongHeaderOpene
 	}
 	extHdrLen := extHdr.ParsedLen()
 	extHdr.PacketNumber = opener.DecodePacketNumber(extHdr.PacketNumber, extHdr.PacketNumberLen)
-	fmt.Println("Long header opener.Open(...) type: ", reflect.TypeOf(opener))
+	crypto_settings.Crypto_debug_println("Long header opener.Open(...) type: ", reflect.TypeOf(opener))
 	decrypted, err := opener.Open(data[extHdrLen:extHdrLen], data[extHdrLen:], extHdr.PacketNumber, data[:extHdrLen])
 	if err != nil {
 		return nil, nil, err
@@ -162,9 +163,9 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 	pn = opener.DecodePacketNumber(pn, pnLen)
 
 	length := 40
-	fmt.Println("\n\nRECEIVER: raw undecrypted (pn: ", pn, ")")
-	fmt.Println(hex.Dump(data[:length])) // TODO: remove
-	fmt.Println("type", reflect.TypeOf(opener))
+	crypto_settings.Crypto_debug_println("\n\nRECEIVER: raw undecrypted (pn: ", pn, ")")
+	crypto_settings.Crypto_debug_println(hex.Dump(data[:length])) // TODO: remove
+	crypto_settings.Crypto_debug_println("type", reflect.TypeOf(opener))
 
 	decrypted := data[l:]
 	var err error
@@ -173,10 +174,14 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 		if err != nil {
 			return 0, 0, 0, nil, err
 		}
+
+		if crypto_settings.RegisterFullyReceivedPacket != nil {
+			crypto_settings.RegisterFullyReceivedPacket(uint64(pn))
+		}
 	}
 
-	fmt.Println("\n\nRECEIVER: raw decrypted")
-	fmt.Println(hex.Dump(decrypted[:length])) // TODO: remove
+	crypto_settings.Crypto_debug_println("\n\nRECEIVER: raw decrypted")
+	crypto_settings.Crypto_debug_println(hex.Dump(decrypted[:length])) // TODO: remove
 
 	return pn, pnLen, kp, decrypted, parseErr
 }

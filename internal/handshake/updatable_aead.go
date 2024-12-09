@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
@@ -242,15 +241,15 @@ func (a *updatableAEAD) Open(dst, src []byte, rcvTime time.Time, pn protocol.Pac
 func (a *updatableAEAD) open(dst, src []byte, rcvTime time.Time, pn protocol.PacketNumber, kp protocol.KeyPhaseBit, ad []byte) ([]byte, error) {
 
 	// TODO: remove
-	fmt.Println("cipher suite", a.suite)
-	fmt.Println("key phase", a.keyPhase, "kp", kp)
-	fmt.Println("prevRcvAEAD", reflect.TypeOf(a.prevRcvAEAD))
-	fmt.Println("rcvAEAD", reflect.TypeOf(a.rcvAEAD))
-	fmt.Println("nextRcvAEAD", reflect.TypeOf(a.nextRcvAEAD))
-	fmt.Println("sendAEAD", reflect.TypeOf(a.sendAEAD))
-	fmt.Println("nextSendAEAD", reflect.TypeOf(a.nextSendAEAD))
-	fmt.Println("noncebuf", a.nonceBuf)
-	fmt.Println("PacketNumber", pn)
+	// fmt.Println("cipher suite", a.suite)
+	// fmt.Println("key phase", a.keyPhase, "kp", kp)
+	// fmt.Println("prevRcvAEAD", reflect.TypeOf(a.prevRcvAEAD))
+	// fmt.Println("rcvAEAD", reflect.TypeOf(a.rcvAEAD))
+	// fmt.Println("nextRcvAEAD", reflect.TypeOf(a.nextRcvAEAD))
+	// fmt.Println("sendAEAD", reflect.TypeOf(a.sendAEAD))
+	// fmt.Println("nextSendAEAD", reflect.TypeOf(a.nextSendAEAD))
+	// fmt.Println("noncebuf", a.nonceBuf)
+	// fmt.Println("PacketNumber", pn)
 
 	if a.prevRcvAEAD != nil && !a.prevRcvAEADExpiry.IsZero() && rcvTime.After(a.prevRcvAEADExpiry) {
 		a.prevRcvAEAD = nil

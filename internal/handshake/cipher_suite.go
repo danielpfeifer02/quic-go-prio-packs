@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/tls"
-	"encoding/hex"
 	"fmt"
 	"reflect"
 
@@ -132,26 +131,27 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
 	}
-	fmt.Println("\nf.aead.Open(...) type: ", reflect.TypeOf(f.aead))
-	fmt.Print("nonce: ")
+	// fmt.Println("\nf.aead.Open(...) type: ", reflect.TypeOf(f.aead))
+	// fmt.Print("nonce: ")
 	for i := 0; i < len(f.nonceMask); i++ {
-		fmt.Printf("%02x ", f.nonceMask[i])
+		// fmt.Printf("%02x ", f.nonceMask[i])
 	}
-	fmt.Println()
+	// fmt.Println()
 
 	// TODONOW: something is wrong here when differentiating if decryption needs to be done or not
 	var result []byte
 	var err error
 	// TODO: remove
+	// TODONOW: fix this mess lol
 	// BIG_TODO: this part seems to make ebpf crypto not being accepted later on
 	if false && !longheadercall && crypto_turnoff.INCOMING_SHORT_HEADER_CRYPTO_TURNED_OFF && reflect.TypeOf(f.aead) == reflect.TypeOf(&chacha20poly1305.Chacha20poly1305{}) {
-		fmt.Println("special case", longheadercall)
-		fmt.Println(hex.Dump(ciphertext))
+		// fmt.Println("special case", longheadercall)
+		// fmt.Println(hex.Dump(ciphertext))
 		result, err = ciphertext, nil
 	} else {
 		ctr += 1
-		fmt.Println("normal case", longheadercall)
-		fmt.Println(hex.Dump(ciphertext))
+		// fmt.Println("normal case", longheadercall)
+		// fmt.Println(hex.Dump(ciphertext))
 
 		ciphertext_copy := make([]byte, len(ciphertext))
 		copy(ciphertext_copy, ciphertext)
@@ -159,13 +159,13 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 		result, err = f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
 
 		if err != nil {
-			fmt.Println("Manual setting since error occured", err)
+			// fmt.Println("Manual setting since error occured", err)
 			result = ciphertext_copy[:len(ciphertext_copy)-16] // remove aead overhead
 			err = nil
 		}
 
-		fmt.Println("translated to: (", len(result), err, ")")
-		fmt.Println(hex.Dump(result))
+		// fmt.Println("translated to: (", len(result), err, ")")
+		// fmt.Println(hex.Dump(result))
 	}
 
 	for i, b := range nonce {

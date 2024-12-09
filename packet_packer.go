@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 
+	crypto_settings "golang.org/x/crypto"
 	"golang.org/x/exp/rand"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
@@ -784,9 +785,9 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 		// STREAM_ONLY_TAG
 		// TODO: are control frames together with stream frames a problem? probably yes...
 		pl.frames, lengthAdded = p.framer.AppendControlFrames(pl.frames, maxFrameSize-pl.length, v)
-		fmt.Println("Number of control frames: ", len(pl.frames)-startLen, "Number of total frames: ", len(pl.frames))
+		crypto_settings.Crypto_debug_println("Number of control frames: ", len(pl.frames)-startLen, "Number of total frames: ", len(pl.frames))
 		for frame := range pl.frames {
-			fmt.Println("Frame type: ", reflect.TypeOf(pl.frames[frame].Frame))
+			crypto_settings.Crypto_debug_println("Frame type: ", reflect.TypeOf(pl.frames[frame].Frame))
 		}
 		pl.length += lengthAdded
 		// add handlers for the control frames that were added
@@ -816,8 +817,6 @@ func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, onlyAc
 			panic("more than one stream frame in a packet")
 		}
 	}
-
-	fmt.Println("Sending data: ", len(pl.streamFrames) > 0, len(pl.frames) > 0, pl.length > 0)
 
 	return pl
 }

@@ -920,9 +920,9 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 			}
 			data = rest
 
-			fmt.Println("HandlePacket: Long Header")
+			// fmt.Println("HandlePacket: Long Header")
 		} else {
-			fmt.Println("HandlePacket: Short Header")
+			// fmt.Println("HandlePacket: Short Header")
 			if counter > 0 {
 				p.buffer.Split()
 			}
@@ -1006,6 +1006,10 @@ func (s *connection) Start1RTTCryptoBitstreamStorage() {
 	for i := 0; i < 20; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
 		pn := protocol.PacketNumber(i)
 		opener_copy.Start1RTTCryptoBitstreamStorage(pn)
+
+		// if crypto_settings.PotentiallTriggerCryptoGarbageCollector != nil {
+		// 	go crypto_settings.PotentiallTriggerCryptoGarbageCollector() // TODO: generating A LOT of threads?
+		// }
 	}
 
 }
