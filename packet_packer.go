@@ -1132,6 +1132,7 @@ func (p *packetPacker) appendPacketPayload(raw []byte, pl payload, paddingLen pr
 	// TODO: since the stream id lenght is fixed for now quic-go thinks there is a bug / inconsistency
 	// if !packet_setting.BPF_TURNED_ON { // TODO: how to handle this?
 	if payloadSize := protocol.ByteCount(len(raw)-payloadOffset) - paddingLen; payloadSize != pl.length {
+		fmt.Println("padding len", paddingLen)
 		return nil, fmt.Errorf("PacketPacker BUG: payload size inconsistent (expected %d, got %d bytes)", pl.length, payloadSize)
 	}
 	// }

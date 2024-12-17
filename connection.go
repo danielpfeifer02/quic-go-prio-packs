@@ -26,6 +26,7 @@ import (
 	"github.com/danielpfeifer02/quic-go-prio-packs/packet_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/priority_setting"
 	"github.com/danielpfeifer02/quic-go-prio-packs/quicvarint"
+	crypto_settings "golang.org/x/crypto"
 )
 
 type unpacker interface {
@@ -1003,13 +1004,13 @@ func (s *connection) Start1RTTCryptoBitstreamStorage() {
 	updatable_aead := opener.(*handshake.UpdatableAEAD)
 	opener_copy := handshake.GetCopyOfUpdatableAEAD(updatable_aead) // TODO: this is likely not a completely correct copy -> how to fix?
 
-	for i := 0; i < 20; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
+	for i := 0; i < 10000; i++ { // TODO: how often? infinite loop until some condition to continuously generate keys?
 		pn := protocol.PacketNumber(i)
 		opener_copy.Start1RTTCryptoBitstreamStorage(pn)
 
-		// if crypto_settings.PotentiallTriggerCryptoGarbageCollector != nil {
-		// 	go crypto_settings.PotentiallTriggerCryptoGarbageCollector() // TODO: generating A LOT of threads?
-		// }
+		if crypto_settings.PotentiallTriggerCryptoGarbageCollector != nil {
+			go crypto_settings.PotentiallTriggerCryptoGarbageCollector() // TODO: generating A LOT of threads?
+		}
 	}
 
 }

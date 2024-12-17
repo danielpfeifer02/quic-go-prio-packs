@@ -2,7 +2,6 @@ package quic
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"reflect"
 	"time"
@@ -162,10 +161,10 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 	}
 	pn = opener.DecodePacketNumber(pn, pnLen)
 
-	length := 40
-	crypto_settings.Crypto_debug_println("\n\nRECEIVER: raw undecrypted (pn: ", pn, ")")
-	crypto_settings.Crypto_debug_println(hex.Dump(data[:length])) // TODO: remove
-	crypto_settings.Crypto_debug_println("type", reflect.TypeOf(opener))
+	// length := 40
+	// crypto_settings.Crypto_debug_println("\n\nRECEIVER: raw undecrypted (pn: ", pn, ")")
+	// crypto_settings.Crypto_debug_println(hex.Dump(data[:length])) // TODO: remove
+	// crypto_settings.Crypto_debug_println("type", reflect.TypeOf(opener))
 
 	decrypted := data[l:]
 	var err error
@@ -180,8 +179,8 @@ func (u *packetUnpacker) unpackShortHeaderPacket(opener handshake.ShortHeaderOpe
 		}
 	}
 
-	crypto_settings.Crypto_debug_println("\n\nRECEIVER: raw decrypted")
-	crypto_settings.Crypto_debug_println(hex.Dump(decrypted[:length])) // TODO: remove
+	// crypto_settings.Crypto_debug_println("\n\nRECEIVER: raw decrypted")
+	// crypto_settings.Crypto_debug_println(hex.Dump(decrypted[:length])) // TODO: remove
 
 	return pn, pnLen, kp, decrypted, parseErr
 }

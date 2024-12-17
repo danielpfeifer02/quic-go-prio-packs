@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
@@ -87,6 +88,67 @@ func newUpdatableAEAD(rttStats *utils.RTTStats, tracer *logging.ConnectionTracer
 }
 
 func GetCopyOfUpdatableAEAD(aead *updatableAEAD) *updatableAEAD {
+
+	nextRcvTrafficSecret_copy := make([]byte, len(aead.nextRcvTrafficSecret))
+	copy(nextRcvTrafficSecret_copy, aead.nextRcvTrafficSecret)
+
+	nextSendTrafficSecret_copy := make([]byte, len(aead.nextSendTrafficSecret))
+	copy(nextSendTrafficSecret_copy, aead.nextSendTrafficSecret)
+
+	nonceBuf_copy := make([]byte, len(aead.nonceBuf))
+	copy(nonceBuf_copy, aead.nonceBuf)
+
+	fmt.Println("Copy types:")
+	fmt.Println("rcvAEAD: ", reflect.TypeOf(aead.rcvAEAD))
+	fmt.Println("sendAEAD: ", reflect.TypeOf(aead.sendAEAD))
+	fmt.Println("nextRcvAEAD: ", reflect.TypeOf(aead.nextRcvAEAD))
+	fmt.Println("nextSendAEAD: ", reflect.TypeOf(aead.nextSendAEAD))
+
+	var rcvAEAD_copy cipher.AEAD
+	var sendAEAD_copy cipher.AEAD
+	var nextRcvAEAD_copy cipher.AEAD
+	var nextSendAEAD_copy cipher.AEAD
+
+	if tmp := aead.rcvAEAD.(*xorNonceAEAD); tmp != nil {
+		tmp_copy := &xorNonceAEAD{}
+		tmp_copy.nonceMask = [len(tmp.nonceMask)]byte{}
+		copy(tmp_copy.nonceMask[:], tmp.nonceMask[:])
+		tmp_copy.aead = tmp.aead
+		rcvAEAD_copy = tmp_copy
+	} else {
+		rcvAEAD_copy = aead.rcvAEAD
+	}
+
+	if tmp := aead.sendAEAD.(*xorNonceAEAD); tmp != nil {
+		tmp_copy := &xorNonceAEAD{}
+		tmp_copy.nonceMask = [len(tmp.nonceMask)]byte{}
+		copy(tmp_copy.nonceMask[:], tmp.nonceMask[:])
+		tmp_copy.aead = tmp.aead
+		sendAEAD_copy = tmp_copy
+	} else {
+		sendAEAD_copy = aead.sendAEAD
+	}
+
+	if tmp := aead.nextRcvAEAD.(*xorNonceAEAD); tmp != nil {
+		tmp_copy := &xorNonceAEAD{}
+		tmp_copy.nonceMask = [len(tmp.nonceMask)]byte{}
+		copy(tmp_copy.nonceMask[:], tmp.nonceMask[:])
+		tmp_copy.aead = tmp.aead
+		nextRcvAEAD_copy = tmp_copy
+	} else {
+		nextRcvAEAD_copy = aead.nextRcvAEAD
+	}
+
+	if tmp := aead.nextSendAEAD.(*xorNonceAEAD); tmp != nil {
+		tmp_copy := &xorNonceAEAD{}
+		tmp_copy.nonceMask = [len(tmp.nonceMask)]byte{}
+		copy(tmp_copy.nonceMask[:], tmp.nonceMask[:])
+		tmp_copy.aead = tmp.aead
+		nextSendAEAD_copy = tmp_copy
+	} else {
+		nextSendAEAD_copy = aead.nextSendAEAD
+	}
+
 	return &updatableAEAD{
 		suite:                   aead.suite,
 		keyPhase:                aead.keyPhase,
@@ -102,24 +164,26 @@ func GetCopyOfUpdatableAEAD(aead *updatableAEAD) *updatableAEAD {
 		highestRcvdPN:           aead.highestRcvdPN,
 		numRcvdWithCurrentKey:   aead.numRcvdWithCurrentKey,
 		numSentWithCurrentKey:   aead.numSentWithCurrentKey,
-		rcvAEAD:                 aead.rcvAEAD,
-		sendAEAD:                aead.sendAEAD,
+		rcvAEAD:                 rcvAEAD_copy,
+		sendAEAD:                sendAEAD_copy,
 		aeadOverhead:            aead.aeadOverhead,
-		nextRcvAEAD:             aead.nextRcvAEAD,
-		nextSendAEAD:            aead.nextSendAEAD,
-		nextRcvTrafficSecret:    aead.nextRcvTrafficSecret,
-		nextSendTrafficSecret:   aead.nextSendTrafficSecret,
+		nextRcvAEAD:             nextRcvAEAD_copy,
+		nextSendAEAD:            nextSendAEAD_copy,
+		nextRcvTrafficSecret:    nextRcvTrafficSecret_copy,
+		nextSendTrafficSecret:   nextSendTrafficSecret_copy,
 		headerDecrypter:         aead.headerDecrypter,
 		headerEncrypter:         aead.headerEncrypter,
 		rttStats:                aead.rttStats,
 		tracer:                  aead.tracer,
 		logger:                  aead.logger,
 		version:                 aead.version,
-		nonceBuf:                aead.nonceBuf,
+		nonceBuf:                nonceBuf_copy,
 	}
 }
 
 func (a *updatableAEAD) rollKeys() {
+
+	return
 
 	if a.prevRcvAEAD != nil {
 		a.logger.Debugf("Dropping key phase %d ahead of scheduled time. Drop time was: %s", a.keyPhase-1, a.prevRcvAEADExpiry)
@@ -151,6 +215,7 @@ func (a *updatableAEAD) startKeyDropTimer(now time.Time) {
 }
 
 func (a *updatableAEAD) getNextTrafficSecret(hash crypto.Hash, ts []byte) []byte {
+	return ts
 	return hkdfExpandLabel(hash, ts, []byte{}, "quic ku", hash.Size())
 }
 
@@ -284,8 +349,9 @@ func (a *updatableAEAD) open(dst, src []byte, rcvTime time.Time, pn protocol.Pac
 				ErrorMessage: "keys updated too quickly",
 			}
 		}
-		fmt.Println("Rollkeys")
+		fmt.Print("Rollkeys from ", a.keyPhase)
 		a.rollKeys()
+		fmt.Println(" to ", a.keyPhase)
 		a.logger.Debugf("Peer updated keys to %d", a.keyPhase)
 		// The peer initiated this key update. It's safe to drop the keys for the previous generation now.
 		// Start a timer to drop the previous key generation.

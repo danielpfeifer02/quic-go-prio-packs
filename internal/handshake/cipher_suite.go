@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/tls"
 	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/danielpfeifer02/quic-go-prio-packs/crypto_turnoff"
@@ -138,6 +139,12 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 	}
 	// fmt.Println()
 
+	nonce_copy := make([]byte, len(nonce)) // TODO: remove
+	m := copy(nonce_copy, nonce[:])
+	if m != len(nonce) {
+		panic("chacha20poly1305: bad nonce length passed to Open")
+	}
+
 	// TODONOW: something is wrong here when differentiating if decryption needs to be done or not
 	var result []byte
 	var err error
@@ -149,7 +156,6 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 		// fmt.Println(hex.Dump(ciphertext))
 		result, err = ciphertext, nil
 	} else {
-		ctr += 1
 		// fmt.Println("normal case", longheadercall)
 		// fmt.Println(hex.Dump(ciphertext))
 
@@ -159,13 +165,26 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 		result, err = f.aead.Open(out, f.nonceMask[:], ciphertext, additionalData)
 
 		if err != nil {
+			// fmt.Println("ebpf decryption", ctr)
+			// fmt.Println("Number of go routines: ", runtime.NumGoroutine())
+			ctr += 1
 			// fmt.Println("Manual setting since error occured", err)
 			result = ciphertext_copy[:len(ciphertext_copy)-16] // remove aead overhead
 			err = nil
+		} else {
+			// fmt.Println("normal decryption")
 		}
 
 		// fmt.Println("translated to: (", len(result), err, ")")
 		// fmt.Println(hex.Dump(result))
+	}
+
+	for i, b := range nonce { // TODO: remove
+		if b != nonce_copy[i] {
+			fmt.Println(nonce)
+			fmt.Println(nonce_copy)
+			panic("nonce changed")
+		}
 	}
 
 	for i, b := range nonce {
@@ -182,6 +201,16 @@ func (f *xorNonceAEAD) OpenCallerConsidering(out, nonce, ciphertext, additionalD
 	// }
 	// fmt.Println()
 
+	// Debug: write into tmp file
+	tmp_file := "/tmp/decrypted_correct"
+	file, err := os.OpenFile(tmp_file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	_, err = file.Write(result)
+	_, err = file.Write([]byte("\n\n\n"))
+
 	return result, err
 }
 
@@ -190,8 +219,23 @@ func (f *xorNonceAEAD) Start1RTTCryptoBitstreamStorage(nonce []byte, pn uint64) 
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
 	}
+	// nonce_copy := make([]byte, len(nonce)) // TODO: remove
+	// m := copy(nonce_copy, nonce[:])
+	// if m != len(nonce) {
+	// 	panic("chacha20poly1305: bad nonce length passed to Start1RTTCryptoBitstreamStorage")
+	// }
+
 	chacha20 := f.aead.(*chacha20poly1305.Chacha20poly1305)
 	chacha20.Start1RTTCryptoBitstreamStorage(f.nonceMask[:], pn)
+
+	// for i, b := range nonce { // TODO: remove
+	// 	if b != nonce_copy[i] {
+	// 		fmt.Println(nonce)
+	// 		fmt.Println(nonce_copy)
+	// 		panic("nonce changed")
+	// 	}
+	// }
+
 	for i, b := range nonce {
 		f.nonceMask[4+i] ^= b
 	}
